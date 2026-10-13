@@ -1,0 +1,1978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ClockLive</title>
+<meta name="description" content="Full-screen clock, world clock and timezone comparison for big screens.">
+<meta name="theme-color" content="#07090f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..800&family=Orbitron:wght@400..900&family=Playfair+Display:wght@400..900&family=Rajdhani:wght@300;500;700&family=Share+Tech+Mono&family=Space+Grotesk:wght@300..700&family=VT323&display=swap" rel="stylesheet">
+<script>
+  /* Apply saved colors before first paint (no flash on load). */
+  try {
+    var s = JSON.parse(localStorage.getItem('clocklive.v1') || '{}'), r = document.documentElement.style;
+    if (s.bg) r.setProperty('--bg', s.bg);
+    if (s.fg) r.setProperty('--fg', s.fg);
+    if (s.accent) r.setProperty('--accent', s.accent);
+  } catch (e) {}
+</script>
+<style>
+:root{
+  --bg:#07090f;--fg:#e8ecf4;--accent:#5ee7ff;
+  --font:'Inter',system-ui,sans-serif;--weight:300;--shadow:none;--dw:.62em;--dsz:24px;
+  --muted:color-mix(in srgb,var(--fg) 58%,transparent);
+  --faint:color-mix(in srgb,var(--fg) 7%,transparent);
+  --line:color-mix(in srgb,var(--fg) 14%,transparent);
+  --panel:color-mix(in srgb,var(--bg) 88%,var(--fg));
+  --card:color-mix(in srgb,var(--fg) 9%,var(--bg));
+  --ui:'Inter',system-ui,-apple-system,'Segoe UI','Nirmala UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none}
+button{font:inherit;color:inherit}
+input,select{font:inherit}
+svg{display:block}
+
+/* ---------- background layers ---------- */
+#bg{position:fixed;inset:0;z-index:0;background:var(--bg);transition:background 1.5s}
+#bg.animated{background:linear-gradient(125deg,var(--bg) 0%,color-mix(in srgb,var(--accent) 22%,var(--bg)) 25%,var(--bg) 50%,color-mix(in srgb,var(--accent) 12%,var(--bg)) 75%,var(--bg) 100%);background-size:400% 400%;animation:bgmove 40s ease-in-out infinite}
+@keyframes bgmove{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+#bgImg{position:fixed;inset:-24px;z-index:0;background-size:cover;background-position:center;display:none}
+#bgDim{position:fixed;inset:0;z-index:0;background:#000;opacity:0;pointer-events:none}
+#scan{position:fixed;inset:0;z-index:3;pointer-events:none;display:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 2px,transparent 2px 4px)}
+body[data-skin=terminal] #scan{display:block}
+#dim{position:fixed;inset:0;z-index:30;background:#000;opacity:0;pointer-events:none;transition:opacity 3s}
+
+/* ---------- stage & modes ---------- */
+#stage{position:fixed;inset:0;z-index:1;transition:transform 2.5s ease}
+.mode{position:absolute;inset:0;display:none;padding:70px 22px 22px}
+.mode.active{display:flex}
+
+/* ---------- top bar ---------- */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 16px;transition:opacity .45s,transform .45s}
+body.idle #topbar{opacity:0;transform:translateY(-12px);pointer-events:none}
+body.idle,body.idle *{cursor:none!important}
+body.idle .hide-idle{opacity:0;pointer-events:none}
+.hide-idle{transition:opacity .45s}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.02em;min-width:0}
+.brand i{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);flex:none}
+.tabs{display:flex;gap:3px;padding:4px;border-radius:999px;background:color-mix(in srgb,var(--panel) 85%,transparent);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);margin:0 auto}
+.tab{border:0;background:none;padding:7px 14px;border-radius:999px;cursor:pointer;font-size:13px;color:var(--muted);display:flex;gap:7px;align-items:center;white-space:nowrap}
+.tab svg{width:15px;height:15px}
+.tab:hover{color:var(--fg)}
+.tab.on{background:var(--fg);color:var(--bg)}
+.tab kbd{font:inherit;font-size:10px;opacity:.55}
+.tb-right{display:flex;gap:6px;align-items:center}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 85%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;display:grid;place-items:center;padding:0;flex:none}
+.icon-btn:hover{border-color:color-mix(in srgb,var(--fg) 35%,transparent)}
+.icon-btn svg{width:18px;height:18px}
+.pill-btn{border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 80%,transparent);border-radius:999px;padding:7px 14px;cursor:pointer;font-size:13px;white-space:nowrap}
+.pill-btn:hover{border-color:color-mix(in srgb,var(--fg) 35%,transparent)}
+.pill-btn.on{background:var(--fg);color:var(--bg);border-color:transparent}
+#addCityBtn{display:none}
+body[data-mode=world] #addCityBtn,body[data-mode=compare] #addCityBtn{display:inline-flex}
+
+/* ---------- big clock ---------- */
+#mode-clock{flex-direction:column;align-items:center;padding:24px}
+.clock-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;width:100%;transition:opacity .22s ease,transform .22s ease,filter .22s ease}
+.clock-wrap.swap{opacity:0;transform:scale(.97);filter:blur(6px)}
+.clock-label{border:0;background:none;cursor:pointer;font-size:calc(var(--dsz)*.8);letter-spacing:.32em;text-transform:uppercase;color:var(--muted);margin:0 0 calc(var(--dsz)*.7);padding:0;font-weight:500}
+.clock-date{font-size:var(--dsz);color:var(--muted);margin-top:calc(var(--dsz)*.7);letter-spacing:.03em;font-weight:400}
+#clockFace{font-family:var(--font);font-weight:var(--weight);line-height:1;white-space:nowrap;text-shadow:var(--shadow);color:var(--fg)}
+.sec-bar{width:40%;height:3px;border-radius:3px;background:var(--faint);margin-top:calc(var(--dsz)*.9);overflow:hidden}
+.sec-bar i{display:block;height:100%;width:0;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.world-strip{display:flex;gap:clamp(18px,3.5vw,64px);justify-content:center;flex-wrap:wrap;padding:1.5vh 0 .5vh;width:100%}
+.ws-item{text-align:center;min-width:0}
+.ws-name{font-size:clamp(10px,1vw,17px);letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.ws-time{font-family:var(--font);font-size:clamp(18px,2.5vw,46px);line-height:1.15;font-variant-numeric:tabular-nums}
+.ws-diff{font-size:clamp(10px,.85vw,15px);color:var(--muted)}
+
+.dg,.sp{font-style:normal;display:inline-block;text-align:center}
+.dg{width:var(--dw)}
+.digital{display:inline-flex;align-items:center;letter-spacing:-.01em}
+.digital .colon{padding:0 .03em;position:relative;top:-.06em;transition:opacity .2s}
+.digital .side{display:flex;flex-direction:column;justify-content:space-between;align-self:stretch;margin-left:.14em;padding:.1em 0}
+.digital .ampm{font-size:.2em;letter-spacing:.12em;color:var(--muted);font-family:var(--ui);font-weight:500}
+.digital .ss{font-size:.36em;color:var(--accent);margin-top:auto}
+body[data-skin=neon] #clockFace,body[data-skin=neon] .x-big{color:color-mix(in srgb,var(--accent) 30%,#fff)}
+body[data-skin=terminal] #clockFace,body[data-skin=terminal] .x-big{color:var(--accent)}
+.cursor-blk{display:inline-block;width:.42em;height:.1em;background:currentColor;align-self:flex-end;margin:0 0 .14em .1em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* flip */
+.flipclock{display:inline-flex;align-items:center;gap:.1em}
+.fgroup{display:inline-flex;gap:.05em}
+.fgroup.g-s{font-size:.5em;align-self:flex-end}
+.fcard{position:relative;width:.74em;height:1.12em;perspective:3em;line-height:1.12em}
+.fcard .half,.fcard .flap{position:absolute;left:0;right:0;height:50%;overflow:hidden;background:var(--card);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.fcard .top,.fcard .front{top:0;border-radius:.07em .07em 0 0;transform-origin:50% 100%}
+.fcard .bottom,.fcard .back{bottom:0;border-radius:0 0 .07em .07em;transform-origin:50% 0;background:color-mix(in srgb,var(--card) 92%,#000)}
+.fcard span{display:block;height:1.12em;text-align:center}
+.fcard .bottom span,.fcard .back span{margin-top:-.56em}
+.fcard .front{z-index:3}
+.fcard .back{z-index:2;transform:rotateX(90deg)}
+.fcard::after{content:'';position:absolute;left:0;right:0;top:calc(50% - .006em);height:.012em;background:color-mix(in srgb,var(--bg) 80%,#000);z-index:5}
+.fcard.go .front{animation:flipTop .28s ease-in forwards}
+.fcard.go .back{animation:flipBot .28s .28s ease-out forwards}
+@keyframes flipTop{to{transform:rotateX(-90deg)}}
+@keyframes flipBot{from{transform:rotateX(90deg)}to{transform:rotateX(0)}}
+.flip-ap{font-family:var(--ui);font-size:.16em;letter-spacing:.15em;color:var(--muted);align-self:flex-start;margin-top:.4em;font-weight:600}
+
+/* LED */
+.led{display:inline-flex;align-items:center;gap:.1em}
+.lg{display:inline-flex;gap:.14em}
+.seg-d{position:relative;width:.56em;height:1em}
+.seg{position:absolute;background:var(--accent);opacity:.07;transition:opacity .12s}
+.seg.on{opacity:1;filter:drop-shadow(0 0 .05em var(--accent))}
+.seg.a,.seg.g,.seg.d{left:.05em;right:.05em;height:.1em;clip-path:polygon(0 50%,.05em 0,calc(100% - .05em) 0,100% 50%,calc(100% - .05em) 100%,.05em 100%)}
+.seg.a{top:0}.seg.g{top:calc(50% - .05em)}.seg.d{bottom:0}
+.seg.b,.seg.c,.seg.e,.seg.f{width:.1em;height:calc(50% - .04em);clip-path:polygon(50% 0,100% .05em,100% calc(100% - .05em),50% 100%,0 calc(100% - .05em),0 .05em)}
+.seg.f{top:.04em;left:0}.seg.b{top:.04em;right:0}.seg.e{bottom:.04em;left:0}.seg.c{bottom:.04em;right:0}
+.led-colon{display:flex;flex-direction:column;gap:.3em;padding:0 .03em}
+.led-colon i{width:.1em;height:.1em;background:var(--accent);filter:drop-shadow(0 0 .05em var(--accent))}
+.led-sec{display:inline-flex;align-items:center;gap:.1em;font-size:.45em;align-self:flex-end}
+.led-ap{font-family:var(--ui);font-size:.16em;letter-spacing:.15em;color:var(--accent);align-self:flex-start;font-weight:700}
+
+/* word clock */
+.wordclock{position:relative;display:grid;grid-template-columns:repeat(11,1em);gap:.32em .42em;padding:.9em;font-weight:var(--weight)}
+.wordclock span{text-align:center;opacity:.13;transition:opacity .8s,color .8s,text-shadow .8s}
+.wordclock span.on{opacity:1;color:var(--accent);text-shadow:0 0 .35em color-mix(in srgb,var(--accent) 60%,transparent)}
+.wc-dot{position:absolute;width:.24em;height:.24em;border-radius:50%;background:var(--fg);opacity:.13;transition:.6s}
+.wc-dot.on{opacity:1;background:var(--accent);box-shadow:0 0 .3em var(--accent)}
+
+/* analog */
+.an{overflow:visible}
+.an .face{fill:color-mix(in srgb,var(--fg) 4%,transparent);stroke:color-mix(in srgb,var(--fg) 22%,transparent);stroke-width:1.2}
+.an .tk{stroke:var(--fg)}
+.an .mn{opacity:.4}
+.an .num{fill:var(--fg);font-family:var(--font);font-size:15px;font-weight:500;text-anchor:middle;dominant-baseline:central}
+.an .hand line,.an .hand polygon{stroke:var(--fg);fill:var(--fg);stroke-linecap:round}
+.an .sec line{stroke:var(--accent)}
+.an .sec circle{fill:var(--accent)}
+.an .pin{fill:var(--bg);stroke:var(--accent);stroke-width:1.4}
+.an-modern .face{fill:color-mix(in srgb,var(--fg) 3%,transparent);stroke:color-mix(in srgb,var(--fg) 10%,transparent)}
+.an-modern .tk-dot{fill:var(--fg);opacity:.55}
+.an-modern .tk-dot.big{fill:var(--accent);opacity:1}
+.an-swiss .face{fill:#f4f4f0;stroke:#cfcfca;stroke-width:3.5}
+.an-swiss .tk{stroke:#111}
+.an-swiss .mn{opacity:1}
+.an-swiss .hand polygon{fill:#141414;stroke:none}
+.an-swiss .sec line{stroke:#d71920}
+.an-swiss .sec circle{fill:#d71920}
+.an-luxury .face{fill:url(#luxF);stroke:url(#luxG);stroke-width:5}
+.an-luxury .ring{fill:none;stroke:#c9a54a;stroke-width:.5;opacity:.6}
+.an-luxury .tk{stroke:#d9bd6a}
+.an-luxury .num{fill:#e8cf86;font-family:'Playfair Display',serif;font-size:13px}
+.an-luxury .hand polygon{fill:url(#luxG);stroke:#5b4513;stroke-width:.4}
+.an-luxury .sec line{stroke:#e8cf86}
+.an-luxury .sec circle{fill:#e8cf86}
+.an-luxury .pin{fill:#c9a54a;stroke:#5b4513}
+.an-luxury .datewin{fill:#f4efe2;stroke:#c9a54a;stroke-width:1}
+.an-luxury .datetx{fill:#111;font-size:11px;font-family:'Inter',sans-serif;font-weight:600;text-anchor:middle;dominant-baseline:central}
+.an-luxury .brand{fill:#c9a54a;font-size:6.5px;letter-spacing:2.2px;text-anchor:middle;font-family:'Playfair Display',serif}
+
+/* ---------- world grid ---------- */
+#mode-world{padding:70px 20px 20px}
+.grid{flex:1;display:grid;gap:14px;min-height:0;min-width:0}
+.card{position:relative;container-type:size;border-radius:20px;border:1px solid var(--line);background:var(--faint);overflow:hidden;transition:background 2s,border-color .3s,opacity .2s;min-width:0;min-height:0}
+.card.ph-day{background:linear-gradient(160deg,color-mix(in srgb,#ffcf5c 15%,transparent),var(--faint) 70%)}
+.card.ph-dawn{background:linear-gradient(160deg,color-mix(in srgb,#ff9a62 16%,transparent),var(--faint) 70%)}
+.card.ph-dusk{background:linear-gradient(160deg,color-mix(in srgb,#b46cff 17%,transparent),var(--faint) 70%)}
+.card.ph-night{background:linear-gradient(160deg,color-mix(in srgb,#3a5bff 11%,transparent),var(--faint) 70%)}
+.card.home{border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+.card.dragging{opacity:.35}
+.card.over{outline:2px dashed var(--accent);outline-offset:3px}
+.ci{position:absolute;inset:0;padding:6cqmin 7cqmin;display:flex;flex-direction:column;justify-content:space-between;gap:2cqmin}
+.c-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.c-name{font-size:clamp(12px,9cqmin,52px);font-weight:600;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-sub{font-size:clamp(10px,4.6cqmin,22px);color:var(--muted);margin-top:.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-icon{width:clamp(16px,10cqmin,56px);flex:none}
+.c-icon svg{width:100%;height:auto}
+.ph-day .c-icon{color:#ffc94a}.ph-dawn .c-icon{color:#ff9a62}.ph-dusk .c-icon{color:#c88cff}.ph-night .c-icon{color:#9fb3ff}
+.c-mid{display:flex;align-items:center;gap:5cqmin;min-height:0}
+.c-an{width:min(46cqh,40cqw);height:min(46cqh,40cqw);flex:none}
+.c-an svg{width:100%;height:100%}
+.c-time{font-family:var(--font);font-weight:var(--weight);font-size:min(25cqw,42cqh);line-height:1;white-space:nowrap;text-shadow:var(--shadow);display:flex;align-items:stretch}
+.c-time .side{display:flex;flex-direction:column;justify-content:space-between;margin-left:.12em;padding:.1em 0}
+.has-an .c-time{font-size:min(14cqw,26cqh)}
+.c-time .s{font-size:.36em;color:var(--accent);margin-top:auto}
+.c-time .ap{font-size:.22em;color:var(--muted);font-family:var(--ui);font-weight:600;letter-spacing:.08em}
+.c-foot{display:flex;justify-content:space-between;gap:8px;font-size:clamp(10px,4.6cqmin,24px);color:var(--muted);white-space:nowrap}
+.c-diff{text-align:right;overflow:hidden;text-overflow:ellipsis}
+.card-x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;opacity:0;transition:opacity .2s;z-index:2;padding:0;line-height:1}
+.card:hover .card-x{opacity:1}
+.empty{margin:auto;text-align:center;color:var(--muted);font-size:18px;display:flex;flex-direction:column;gap:14px;align-items:center}
+
+/* ---------- compare ---------- */
+#mode-compare{flex-direction:column;padding:70px 20px 16px;gap:12px}
+.cmp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cmp-nav{display:flex;align-items:center;gap:8px}
+.cmp-date{font-size:clamp(15px,1.5vw,26px);font-weight:600;min-width:13ch;text-align:center}
+#cmpReadout{font-size:clamp(13px,1.15vw,20px);color:var(--muted)}
+#cmpReadout b{color:var(--fg);font-weight:600}
+.cmp-body{flex:1;min-height:0;overflow:auto;--lw:clamp(150px,17vw,300px)}
+.cmp-rows{position:relative;min-height:100%;display:flex;flex-direction:column;gap:6px;cursor:crosshair}
+.cmp-row{flex:1 1 0;min-height:48px;max-height:120px;display:grid;grid-template-columns:var(--lw) minmax(0,1fr);gap:10px}
+.cmp-lab{display:flex;flex-direction:column;justify-content:center;padding:4px 12px;border-radius:12px;background:var(--faint);min-width:0;cursor:default;border:1px solid transparent}
+.cmp-row.home .cmp-lab{border-color:color-mix(in srgb,var(--accent) 50%,transparent)}
+.cl-top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.cl-name{font-weight:600;font-size:clamp(12px,1.05vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-acts{display:flex;gap:2px;opacity:0;transition:opacity .2s}
+.cmp-lab:hover .cl-acts{opacity:1}
+.cl-acts button{border:0;background:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:14px}
+.cl-acts button:hover{color:var(--fg)}
+.cmp-row.home .cl-acts [data-act=home]{color:var(--accent)}
+.cl-time{font-family:var(--font);font-weight:var(--weight);font-size:clamp(15px,1.7vw,32px);line-height:1.1;white-space:nowrap}
+.cl-sub{font-size:clamp(10px,.75vw,14px);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmp-strip{display:flex;border-radius:12px;overflow:hidden;position:relative;min-width:0}
+.hc{flex:1;display:flex;align-items:center;justify-content:center;font-size:clamp(9px,.85vw,15px);min-width:0;overflow:hidden;font-variant-numeric:tabular-nums;color:var(--muted)}
+.hc.hm{letter-spacing:-.03em}
+.hc.night{opacity:.55}
+.hc.day{background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.hc.work{background:color-mix(in srgb,var(--accent) 24%,transparent);color:var(--fg)}
+.hc.mid{color:var(--accent);font-weight:700;box-shadow:inset 1px 0 0 color-mix(in srgb,var(--accent) 60%,transparent);opacity:1}
+.cmp-overlay{position:absolute;top:0;bottom:0;right:0;left:calc(var(--lw) + 10px);pointer-events:none}
+.ovcol{position:absolute;top:-4px;bottom:-4px;border:2px solid color-mix(in srgb,#3ddc97 70%,transparent);border-radius:10px}
+.cmp-now{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#ff4d6d}
+.cmp-cur{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--fg);display:none}
+.cmp-cur.on{display:block}
+.cmp-cur.locked{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+#cmpPlanner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:clamp(13px,1.05vw,18px);color:var(--muted)}
+#cmpPlanner b{color:var(--fg);font-weight:600}
+#cmpPlanner .ok{color:#3ddc97;font-weight:600}
+#cmpPlanner .pill-btn{padding:4px 12px;font-size:12px;margin-left:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* ---------- extras ---------- */
+#mode-extras{flex-direction:column;align-items:center;padding:70px 20px 24px}
+.x-tabs{display:flex;gap:6px}
+.x-panel{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:0}
+.x-panel.on{display:flex}
+.x-label{font-size:clamp(14px,1.8vw,30px);letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-bottom:1.5vh}
+.x-big{font-family:var(--font);font-weight:var(--weight);line-height:1;white-space:nowrap;text-shadow:var(--shadow)}
+.x-big .cs{font-size:.4em;color:var(--accent)}
+.x-bar{width:min(60vw,900px);height:4px;border-radius:4px;background:var(--faint);margin-top:3vh;overflow:hidden}
+.x-bar i{display:block;height:100%;background:var(--accent);width:100%;box-shadow:0 0 8px var(--accent)}
+.x-ctrls{display:flex;gap:10px;margin-top:3.5vh;flex-wrap:wrap;justify-content:center}
+.btn{border:1px solid var(--line);background:var(--faint);padding:12px 24px;border-radius:999px;cursor:pointer;font-size:15px;font-weight:600;min-width:96px}
+.btn:hover{border-color:color-mix(in srgb,var(--fg) 35%,transparent)}
+.btn.primary{background:var(--accent);color:var(--bg);border-color:transparent}
+.x-setup{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:3vh}
+.presets{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.hms{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);flex-wrap:wrap;justify-content:center}
+.hms input{width:64px;text-align:center;background:var(--faint);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 6px;font-size:16px}
+.hms label{display:flex;align-items:center;gap:6px}
+.laps{width:min(560px,90vw);max-height:24vh;overflow:auto;margin-top:2.5vh;font-variant-numeric:tabular-nums}
+.lap{display:grid;grid-template-columns:1fr 1fr 1fr;padding:8px 6px;border-bottom:1px solid var(--line);font-size:15px}
+.lap span:nth-child(2){text-align:center}.lap span:last-child{text-align:right;color:var(--muted)}
+.pomo-dots{display:flex;gap:10px;margin-top:2.5vh}
+.pomo-dots i{width:12px;height:12px;border-radius:50%;border:2px solid var(--accent)}
+.pomo-dots i.done{background:var(--accent)}
+#ring{position:fixed;inset:0;z-index:80;display:none;place-items:center;text-align:center;background:color-mix(in srgb,var(--accent) 25%,var(--bg));animation:flash 1s infinite}
+#ring.on{display:grid}
+.ring-t{font-size:clamp(40px,10vw,180px);font-weight:800;margin-bottom:4vh;font-family:var(--font)}
+@keyframes flash{50%{background:var(--bg)}}
+
+/* ---------- drawer ---------- */
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(410px,100vw);z-index:40;background:var(--panel);border-left:1px solid var(--line);transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(0,0,0,.35);user-select:auto}
+#drawer.open{transform:none}
+.dr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dr-head{gap:10px}
+.dr-head h2{margin:0;font-size:17px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lang-sel{display:flex;align-items:center;gap:4px;height:34px;border:1px solid var(--line);border-radius:999px;padding:0 4px 0 10px;background:var(--faint);color:var(--muted);cursor:pointer}
+.lang-sel svg{width:15px;height:15px;flex:none}
+.lang-sel select{background:transparent;border:0;color:var(--fg);font-size:13px;padding:6px 2px;max-width:120px;cursor:pointer;outline:none}
+.dr-tabs{display:flex;gap:2px;margin:12px 14px 0;padding:3px;border-radius:12px;background:var(--faint);border:1px solid var(--line)}
+.dr-tabs button{flex:1;min-width:0;border:0;background:none;border-radius:9px;padding:8px 2px;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.dr-tabs button:hover{color:var(--fg)}
+.dr-tabs button.on{background:var(--panel);color:var(--fg);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.dr-body{overflow:auto;padding:2px 18px 32px;flex:1;overscroll-behavior:contain}
+.dr-pane{display:none}
+.dr-pane.on{display:block;animation:paneIn .2s ease}
+@keyframes paneIn{from{opacity:0;transform:translateY(4px)}}
+.dr-body section{padding:14px 0;border-bottom:1px solid var(--line)}
+.dr-pane section:last-child{border-bottom:0}
+.dr-body h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:600}
+.pair{display:flex;gap:6px;align-items:center}
+.more{padding:12px 0}
+.more summary{cursor:pointer;font-size:13px;color:var(--muted);list-style:none;display:flex;align-items:center;gap:6px}
+.more summary::-webkit-details-marker{display:none}
+.more summary::before{content:'›';display:inline-block;transition:transform .2s;font-size:16px;line-height:1}
+.more[open] summary::before{transform:rotate(90deg)}
+.more[open] summary{margin-bottom:6px}
+.skin-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.skin-btn{border:1px solid var(--line);background:var(--faint);border-radius:12px;padding:8px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.skin-btn:hover{color:var(--fg)}
+.skin-btn.on{border-color:var(--accent);color:var(--fg);box-shadow:0 0 0 1px var(--accent) inset}
+.skin-prev{height:36px;width:100%;display:grid;place-items:center;font-size:19px;color:var(--fg);overflow:hidden}
+.skin-prev svg{width:34px;height:34px}
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+.sw{height:42px;border-radius:10px;border:1px solid var(--line);cursor:pointer;position:relative;overflow:hidden;padding:0;display:flex;align-items:flex-end;justify-content:center;font-size:9px;font-weight:600;padding-bottom:3px}
+.sw::before{content:'';position:absolute;top:7px;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--sa)}
+.sw.on{outline:2px solid var(--accent);outline-offset:2px}
+.colors{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.colors label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+input[type=color]{width:100%;height:36px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px;cursor:pointer}
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;font-size:14px}
+.field>span:first-child{flex:1}
+.field select,.field input[type=text],.field input[type=url]{background:var(--faint);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:7px 9px;font-size:13px;max-width:210px;min-width:0}
+.field input[type=url]{width:210px}
+select option{background:var(--bg);color:var(--fg)}
+input[type=range]{accent-color:var(--accent);width:150px}
+.rv{font-size:12px;color:var(--muted);width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.tg{appearance:none;-webkit-appearance:none;width:40px;height:23px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:background .2s;flex:none;margin:0}
+.tg::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--fg);transition:transform .2s}
+.tg:checked{background:var(--accent)}
+.tg:checked::after{transform:translateX(17px);background:var(--bg)}
+.hint{font-size:12px;color:var(--muted);margin:4px 0 0;line-height:1.5}
+.city-list{display:flex;flex-direction:column;margin-bottom:10px}
+.cl-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.cl-in{flex:1;min-width:0;background:transparent;border:1px solid transparent;color:var(--fg);border-radius:6px;padding:5px 6px;font-size:14px}
+.cl-in:hover,.cl-in:focus{border-color:var(--line);outline:none}
+.cl-tz{font-size:11px;color:var(--muted);max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-row button{border:1px solid var(--line);background:none;border-radius:6px;cursor:pointer;width:26px;height:26px;padding:0;color:var(--muted)}
+.cl-row button:hover:not(:disabled){color:var(--fg)}
+.cl-row button:disabled{opacity:.3;cursor:default}
+.danger{border:1px solid color-mix(in srgb,#ff4d6d 50%,transparent);background:none;color:#ff6b83;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:13px}
+.wake-ok{color:#3ddc97}
+
+/* wide letter-spacing breaks Indic/CJK scripts */
+.nonlatin .x-label,.nonlatin .dr-body h3{letter-spacing:.04em}
+
+/* ---------- modals ---------- */
+.modal{position:fixed;inset:0;z-index:60;display:grid;place-items:start center;padding:10vh 16px 16px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.modal.open{opacity:1;visibility:visible;transition:opacity .2s}
+.mbox{width:min(560px,100%);max-height:80vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);user-select:auto;transform:translateY(10px) scale(.98);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.modal.open .mbox{transform:none}
+.mbox-wide{width:min(720px,100%)}
+.m-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 14px 10px 20px}
+.m-head h2{margin:0;font-size:17px;font-weight:600}
+.m-x{width:32px;height:32px;font-size:13px;color:var(--muted)}
+.search{display:flex;align-items:center;gap:10px;margin:0 14px 10px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--faint);transition:border-color .2s}
+.search:focus-within{border-color:var(--accent)}
+.search svg{width:18px;height:18px;color:var(--muted);flex:none}
+#pickQ{flex:1;min-width:0;padding:12px 0;font-size:16px;background:transparent;border:0;color:var(--fg);outline:none}
+#pickList{flex:1;min-height:0;overflow:auto;padding:0 8px 8px;border-top:1px solid var(--line);padding-top:6px;overscroll-behavior:contain}
+.pk{display:flex;align-items:center;padding:9px 12px;cursor:pointer;gap:12px;border-radius:10px}
+.pk:hover{background:var(--faint)}
+.pk.sel{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.pk-ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--faint);color:var(--muted)}
+.pk-ic svg{width:16px;height:16px}
+.pk-ic.day{color:#ffc857;background:color-mix(in srgb,#ffc857 14%,transparent)}
+.pk-main{flex:1;min-width:0}
+.pk-n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-c{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-t{font-variant-numeric:tabular-nums;font-size:15px;text-align:right;white-space:nowrap}
+.pk-t .pk-c{text-align:right}
+.pk-badge{font-size:11px;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+.pk-none{padding:28px 12px;color:var(--muted);text-align:center}
+.m-foot{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.m-foot kbd,.keys kbd{font-family:var(--ui);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:var(--faint);white-space:nowrap;margin-right:3px;color:var(--fg)}
+.help-body{padding:4px 20px 20px;overflow:auto}
+.keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px;font-size:14px}
+.keys>div{display:flex;align-items:center;gap:3px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.keys>div span{margin-left:8px;color:var(--muted)}
+.tip{font-size:13px;color:var(--muted);line-height:1.55;margin:16px 0 0;padding:12px 14px;border-radius:12px;background:var(--faint)}
+@media (max-width:600px){
+  .modal{padding:12px 10px}
+  .mbox{max-height:calc(100vh - 24px)}
+  .keys{grid-template-columns:1fr}
+  .m-foot{display:none}
+}
+#toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;z-index:90;background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;font-weight:600;transition:.3s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:820px){
+  .brand b,.tab kbd{display:none}
+  .tab .lbl{display:none}
+  .tab{padding:8px 12px}
+  .mode{padding-left:14px;padding-right:14px}
+  #mode-world,#mode-compare,#mode-extras{padding-top:66px}
+  .cmp-body{--lw:118px}
+  .hc small{display:none}
+  .skin-grid{grid-template-columns:repeat(3,1fr)}
+  #topbar{padding:10px 12px;gap:8px}
+  .icon-btn{width:34px;height:34px}
+  #addCityBtn{padding:7px 10px}
+}
+@media (max-width:600px){ .hc{font-size:0!important} .cmp-row{grid-template-columns:var(--lw) minmax(0,1fr);gap:6px} .cmp-overlay{left:calc(var(--lw) + 6px)} }
+@media (max-width:480px){
+  #drawer{width:100vw;border-left:0}
+  .dr-tabs{margin:10px 10px 0}
+  .dr-tabs button{font-size:12px}
+  .dr-body{padding:2px 14px 28px}
+  input[type=range]{width:min(150px,38vw)}
+  .cl-tz{display:none}
+  .swatches{grid-template-columns:repeat(5,1fr);gap:6px}
+}
+@media (max-height:720px){
+  .dr-head{padding:10px 16px}
+  .dr-body section{padding:10px 0}
+  .field{padding:5px 0}
+  .skin-btn{padding:6px 4px;gap:4px}
+  .skin-prev{height:30px}
+  .sw{height:36px}
+}
+@media (max-width:480px){ .brand{display:none} .tb-right .opt,#addCityBtn{display:none!important} .tabs{margin:0} #topbar{justify-content:space-between} }
+</style>
+</head>
+<body data-mode="clock">
+<div id="bg"></div><div id="bgImg"></div><div id="bgDim"></div><div id="scan"></div>
+
+<main id="stage">
+  <section id="mode-clock" class="mode">
+    <div class="clock-wrap" id="clockWrap">
+      <button class="clock-label" id="clockLabel" data-i18n-title="changeTz"></button>
+      <div id="clockFace"></div>
+      <div class="clock-date" id="clockDate"></div>
+      <div class="sec-bar" id="secBar"><i></i></div>
+    </div>
+    <div class="world-strip" id="worldStrip"></div>
+  </section>
+
+  <section id="mode-world" class="mode"><div class="grid" id="worldGrid"></div></section>
+
+  <section id="mode-compare" class="mode">
+    <div class="cmp-head">
+      <div class="cmp-nav">
+        <button class="pill-btn" id="cmpPrev" aria-label="Previous day">&#8249;</button>
+        <div class="cmp-date" id="cmpDate"></div>
+        <button class="pill-btn" id="cmpNext" aria-label="Next day">&#8250;</button>
+        <button class="pill-btn" id="cmpNow" data-i18n="now">Now</button>
+      </div>
+      <div id="cmpReadout"></div>
+    </div>
+    <div class="cmp-body"><div class="cmp-rows" id="cmpRows"></div></div>
+    <div id="cmpPlanner"></div>
+  </section>
+
+  <section id="mode-extras" class="mode">
+    <div class="x-tabs hide-idle">
+      <button class="pill-btn" data-xtab="sw" data-i18n="stopwatch">Stopwatch</button>
+      <button class="pill-btn" data-xtab="cd" data-i18n="timer">Timer</button>
+      <button class="pill-btn" data-xtab="pomo" data-i18n="pomodoro">Pomodoro</button>
+    </div>
+    <div class="x-panel" id="x-sw">
+      <div class="x-label" data-i18n="stopwatch">Stopwatch</div>
+      <div class="x-big" id="swBig"></div>
+      <div class="x-ctrls hide-idle">
+        <button class="btn primary" id="swGo">Start</button>
+        <button class="btn" id="swLap" data-i18n="lap">Lap</button>
+        <button class="btn" id="swReset" data-i18n="reset">Reset</button>
+      </div>
+      <div class="laps" id="swLaps"></div>
+    </div>
+    <div class="x-panel" id="x-cd">
+      <div class="x-label" data-i18n="timer">Timer</div>
+      <div class="x-big" id="cdBig"></div>
+      <div class="x-bar"><i id="cdBar"></i></div>
+      <div class="x-ctrls hide-idle">
+        <button class="btn primary" id="cdGo">Start</button>
+        <button class="btn" id="cdPlus" data-i18n="plus1">+1 min</button>
+        <button class="btn" id="cdReset" data-i18n="reset">Reset</button>
+      </div>
+      <div class="x-setup hide-idle">
+        <div class="presets" id="cdPresets"></div>
+        <div class="hms">
+          <input type="number" id="cdH" min="0" max="99" placeholder="h" aria-label="Hours"><span>:</span>
+          <input type="number" id="cdM" min="0" max="59" placeholder="m" aria-label="Minutes"><span>:</span>
+          <input type="number" id="cdS" min="0" max="59" placeholder="s" aria-label="Seconds">
+          <button class="pill-btn" id="cdSet" data-i18n="set">Set</button>
+        </div>
+      </div>
+    </div>
+    <div class="x-panel" id="x-pomo">
+      <div class="x-label" id="pomoLabel">Focus</div>
+      <div class="x-big" id="pomoBig"></div>
+      <div class="x-bar"><i id="pomoBar"></i></div>
+      <div class="pomo-dots" id="pomoDots"></div>
+      <div class="x-ctrls hide-idle">
+        <button class="btn primary" id="pomoGo">Start</button>
+        <button class="btn" id="pomoSkip" data-i18n="skip">Skip</button>
+        <button class="btn" id="pomoReset" data-i18n="reset">Reset</button>
+      </div>
+      <div class="x-setup hide-idle">
+        <div class="hms">
+          <label><span data-i18n="focus">Focus</span> <input type="number" id="pW" min="1" max="180"></label>
+          <label><span data-i18n="short">Short</span> <input type="number" id="pS" min="1" max="60"></label>
+          <label><span data-i18n="long">Long</span> <input type="number" id="pL" min="1" max="120"></label>
+          <label><span data-i18n="rounds">Rounds</span> <input type="number" id="pR" min="1" max="12"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="dim"></div>
+
+<header id="topbar">
+  <div class="brand"><i></i><b>ClockLive</b></div>
+  <nav class="tabs" id="tabs">
+    <button class="tab" data-mode="clock" data-i18n-title="clock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl" data-i18n="clock">Clock</span><kbd>1</kbd></button>
+    <button class="tab" data-mode="world" data-i18n-title="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="lbl" data-i18n="world">World</span><kbd>2</kbd></button>
+    <button class="tab" data-mode="compare" data-i18n-title="compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/><path d="M14 3v18" stroke-dasharray="2 2"/></svg><span class="lbl" data-i18n="compare">Compare</span><kbd>3</kbd></button>
+    <button class="tab" data-mode="extras" data-i18n-title="timers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg><span class="lbl" data-i18n="timers">Timers</span><kbd>4</kbd></button>
+  </nav>
+  <div class="tb-right">
+    <button class="pill-btn" id="addCityBtn" title="A" data-i18n="addCityShort">+ City</button>
+    <button class="icon-btn opt" id="skinBtn" data-i18n-title="nextSkin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1.4-1.2-1.6-1.2-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10" cy="7" r="1" fill="currentColor"/><circle cx="15" cy="7" r="1" fill="currentColor"/></svg></button>
+    <button class="icon-btn" id="setBtn" data-i18n-title="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></button>
+    <button class="icon-btn" id="fsBtn" data-i18n-title="fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button class="icon-btn opt" id="helpBtn" data-i18n-title="shortcuts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17.2v.1"/></svg></button>
+  </div>
+</header>
+
+<aside id="drawer" aria-label="Settings">
+  <div class="dr-head"><h2 data-i18n="settings">Settings</h2><label class="lang-sel" data-i18n-title="language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><select data-k="lang" id="langSel"></select></label><button class="icon-btn" id="drClose" data-i18n-title="close">&#10005;</button></div>
+  <nav class="dr-tabs" id="drTabs" role="tablist">
+    <button data-dt="skin" role="tab" data-i18n="tSkin">Skin</button>
+    <button data-dt="colors" role="tab" data-i18n="tColors">Colors</button>
+    <button data-dt="clock" role="tab" data-i18n="clock">Clock</button>
+    <button data-dt="cities" role="tab" data-i18n="tCities">Cities</button>
+    <button data-dt="screen" role="tab" data-i18n="tScreen">Screen</button>
+  </nav>
+  <div class="dr-body">
+    <div class="dr-pane" data-pane="skin">
+      <section><div class="skin-grid" id="skinGrid"></div></section>
+      <section>
+        <h3 data-i18n="size">Size</h3>
+        <label class="field"><span data-i18n="clockSize">Clock size</span><input type="range" min="30" max="100" data-k="size"><span class="rv" data-rv="size"></span></label>
+        <label class="field"><span data-i18n="glow">Glow</span><input type="range" min="0" max="100" data-k="glow"><span class="rv" data-rv="glow"></span></label>
+      </section>
+      <section>
+        <h3 data-i18n="font">Font</h3>
+        <label class="field"><span data-i18n="typeface">Typeface</span><select data-k="font" id="fontSel"></select></label>
+        <label class="field"><span data-i18n="weight">Weight</span><select data-k="weight">
+          <option value="auto" data-i18n="skinDefault">Skin default</option><option value="100">Thin</option><option value="200">Extra light</option><option value="300">Light</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option><option value="900">Black</option>
+        </select></label>
+      </section>
+    </div>
+
+    <div class="dr-pane" data-pane="colors">
+      <section>
+        <h3 data-i18n="theme">Theme</h3>
+        <div class="swatches" id="themeGrid"></div>
+        <div class="colors">
+          <label><span data-i18n="background">Background</span><input type="color" data-k="bg"></label>
+          <label><span data-i18n="text">Text</span><input type="color" data-k="fg"></label>
+          <label><span data-i18n="accent">Accent</span><input type="color" data-k="accent"></label>
+        </div>
+      </section>
+      <section>
+        <h3 data-i18n="background">Background</h3>
+        <label class="field"><span data-i18n="style">Style</span><select data-k="bgType" id="bgSel"></select></label>
+        <div data-show="image">
+          <label class="field"><span data-i18n="imageUrl">Image URL</span><input type="url" data-k="bgImage" placeholder="https://…"></label>
+          <label class="field"><span data-i18n="darken">Darken</span><input type="range" min="0" max="90" data-k="bgDim"><span class="rv" data-rv="bgDim"></span></label>
+          <label class="field"><span data-i18n="blur">Blur</span><input type="range" min="0" max="30" data-k="bgBlur"><span class="rv" data-rv="bgBlur"></span></label>
+        </div>
+        <p class="hint" data-show="sky" data-i18n="skyHint">Live sky follows the time of day in the clock's timezone.</p>
+      </section>
+    </div>
+
+    <div class="dr-pane" data-pane="clock">
+      <section>
+        <div class="field"><span data-i18n="timezone">Timezone</span><button class="pill-btn" id="clockTzBtn"></button></div>
+        <label class="field"><span data-i18n="h24">24-hour time</span><input type="checkbox" class="tg" data-k="h24"></label>
+      </section>
+      <section>
+        <h3 data-i18n="show">Show</h3>
+        <label class="field"><span data-i18n="seconds">Seconds</span><input type="checkbox" class="tg" data-k="showSec"></label>
+        <label class="field"><span data-i18n="date">Date</span><input type="checkbox" class="tg" data-k="showDate"></label>
+        <label class="field"><span data-i18n="cityName">City name</span><input type="checkbox" class="tg" data-k="showLabel"></label>
+        <label class="field"><span data-i18n="otherCities">Other cities below the clock</span><input type="checkbox" class="tg" data-k="showStrip"></label>
+        <label class="field"><span data-i18n="minuteBar">Minute progress bar</span><input type="checkbox" class="tg" data-k="secBar"></label>
+      </section>
+      <details class="more">
+        <summary data-i18n="moreOptions">More options</summary>
+        <label class="field"><span data-i18n="leadingZero">Leading zero (09:05)</span><input type="checkbox" class="tg" data-k="leadingZero"></label>
+        <label class="field"><span data-i18n="blink">Blinking colon</span><input type="checkbox" class="tg" data-k="blink"></label>
+        <label class="field"><span data-i18n="sweep">Smooth second hand (analog)</span><input type="checkbox" class="tg" data-k="sweep"></label>
+      </details>
+    </div>
+
+    <div class="dr-pane" data-pane="cities">
+      <section>
+        <div class="city-list" id="cityList"></div>
+        <button class="pill-btn" id="drAddCity" data-i18n="addCity">+ Add city</button>
+      </section>
+      <section>
+        <label class="field"><span data-i18n="workHours">Working hours</span>
+          <span class="pair"><select data-k="workStart" data-num id="wsSel"></select>–<select data-k="workEnd" data-num id="weSel"></select></span></label>
+        <label class="field"><span data-i18n="worldAnalog">Analog dials on world cards</span><input type="checkbox" class="tg" data-k="worldAnalog"></label>
+        <label class="field"><span data-i18n="worldSec">Seconds on world cards</span><input type="checkbox" class="tg" data-k="worldSec"></label>
+      </section>
+    </div>
+
+    <div class="dr-pane" data-pane="screen">
+      <section>
+        <label class="field"><span><span data-i18n="keepAwake">Keep screen awake</span> <small id="wakeState" class="hint"></small></span><input type="checkbox" class="tg" data-k="keepAwake"></label>
+        <label class="field"><span data-i18n="autoHide">Hide controls when idle</span><input type="checkbox" class="tg" data-k="autoHide"></label>
+        <label class="field"><span data-i18n="burnIn">Burn-in protection</span><input type="checkbox" class="tg" data-k="burnIn"></label>
+      </section>
+      <section>
+        <label class="field"><span data-i18n="nightDim">Dim at night</span><input type="checkbox" class="tg" data-k="nightDim"></label>
+        <div data-show="nightDim">
+          <label class="field"><span data-i18n="dimFrom">Dim from</span><span class="pair"><select data-k="dimStart" data-num id="dsSel"></select>–<select data-k="dimEnd" data-num id="deSel"></select></span></label>
+          <label class="field"><span data-i18n="dimAmount">Dim amount</span><input type="range" min="10" max="90" data-k="dimLevel"><span class="rv" data-rv="dimLevel"></span></label>
+        </div>
+      </section>
+      <section><button class="danger" id="resetAll" data-i18n="resetAll">Reset all settings</button></section>
+    </div>
+  </div>
+</aside>
+
+<div class="modal" id="picker" role="dialog" aria-labelledby="pickTitle">
+  <div class="mbox">
+    <div class="m-head"><h2 id="pickTitle" data-i18n="chooseCity">Choose a city</h2><button class="icon-btn m-x" data-close data-i18n-title="close">&#10005;</button></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="pickQ" type="text" data-i18n-ph="searchCity" placeholder="Search city, country or timezone…" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="pickList"></div>
+    <div class="m-foot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> <span data-i18n="navHint">to move</span></span><span><kbd>Enter</kbd> <span data-i18n="selectHint">to select</span></span><span><kbd>Esc</kbd> <span data-i18n="closeHint">to close</span></span></div>
+  </div>
+</div>
+
+<div class="modal" id="help" role="dialog" aria-labelledby="helpTitle">
+  <div class="mbox mbox-wide">
+    <div class="m-head"><h2 id="helpTitle" data-i18n="shortcuts">Keyboard shortcuts</h2><button class="icon-btn m-x" data-close data-i18n-title="close">&#10005;</button></div>
+    <div class="help-body">
+      <div class="keys">
+        <div><kbd>1</kbd><span data-i18n="kClock">Big clock</span></div>
+        <div><kbd>2</kbd><span data-i18n="kWorld">World clock grid</span></div>
+        <div><kbd>3</kbd><span data-i18n="kCompare">Timezone comparison</span></div>
+        <div><kbd>4</kbd><span data-i18n="kTimers">Stopwatch / timer / Pomodoro</span></div>
+        <div><kbd>F</kbd><span data-i18n="kFull">Toggle fullscreen</span></div>
+        <div><kbd>T</kbd><span data-i18n="kSkin">Next skin (Shift+T previous)</span></div>
+        <div><kbd>S</kbd><span data-i18n="kSettings">Settings</span></div>
+        <div><kbd>A</kbd><span data-i18n="kAdd">Add a city</span></div>
+        <div><kbd>[</kbd><kbd>]</kbd><span data-i18n="kSize">Smaller / bigger clock</span></div>
+        <div><kbd>Space</kbd><span data-i18n="kSpace">Start / pause the active timer</span></div>
+        <div><kbd>L</kbd><kbd>R</kbd><span data-i18n="kLap">Lap / reset the active timer</span></div>
+        <div><kbd>&larr;</kbd><kbd>&rarr;</kbd><span data-i18n="kDay">Previous / next day in comparison</span></div>
+        <div><kbd>N</kbd><span data-i18n="kNow">Back to now in comparison</span></div>
+        <div><kbd>Esc</kbd><span data-i18n="kEsc">Close panels</span></div>
+      </div>
+      <p class="tip" data-i18n="helpTip">Tip: in World view, drag cards to reorder and double-click one to show it on the big clock. In Compare, hover the timeline to convert times and click to pin.</p>
+    </div>
+  </div>
+</div>
+
+<div id="ring"><div><div class="ring-t" id="ringMsg">Time's up</div><button class="btn primary" id="ringOk" data-i18n="dismiss">Dismiss</button></div></div>
+<div id="toast"></div>
+
+<script id="i18n">
+// UI translations. Clock digits always stay Latin so every skin looks the same in any language.
+window.CL_I18N={
+en:{"clock":"Clock","world":"World","compare":"Compare","timers":"Timers","addCityShort":"+ City","settings":"Settings","language":"Language","close":"Close","tSkin":"Skin","tColors":"Colors","tCities":"Cities","tScreen":"Screen","size":"Size","clockSize":"Clock size","glow":"Glow","font":"Font","typeface":"Typeface","weight":"Weight","skinDefault":"Skin default","theme":"Theme","background":"Background","text":"Text","accent":"Accent","style":"Style","imageUrl":"Image URL","darken":"Darken","blur":"Blur","skyHint":"Live sky follows the time of day in the clock's timezone.","timezone":"Timezone","h24":"24-hour time","show":"Show","seconds":"Seconds","date":"Date","cityName":"City name","otherCities":"Other cities below the clock","minuteBar":"Minute progress bar","moreOptions":"More options","leadingZero":"Leading zero (09:05)","blink":"Blinking colon","sweep":"Smooth second hand (analog)","addCity":"+ Add city","addACity":"+ Add a city","workHours":"Working hours","worldAnalog":"Analog dials on world cards","worldSec":"Seconds on world cards","keepAwake":"Keep screen awake","autoHide":"Hide controls when idle","burnIn":"Burn-in protection","nightDim":"Dim at night","dimFrom":"Dim from","dimAmount":"Dim amount","resetAll":"Reset all settings","settingsReset":"Settings reset","noCities":"No cities yet","compareEmpty":"Add cities to compare their times","now":"Now","today":"Today","tomorrow":"Tomorrow","yesterday":"Yesterday","nDays":"{n} days","sameTime":"Same time","localTime":"Local time","local":"Local","reference":"Reference","hoverHint":"Hover the timeline to compare","showing":"Showing {time} in {city}","clickRelease":"click to release","bestTime":"Best time to meet:","nMore":"+{n} more","showBtn":"Show","noOverlap":"No time when everyone is working. Closest ({k} of {n}):","noWork":"No working hours on this day.","addAnother":"Add another city to compare.","awake":"Awake","night":"Night","everyoneWorking":"Everyone working","stopwatch":"Stopwatch","timer":"Timer","pomodoro":"Pomodoro","start":"Start","pause":"Pause","resume":"Resume","lap":"Lap","lapN":"Lap {n}","reset":"Reset","skip":"Skip","plus1":"+1 min","set":"Set","focus":"Focus","short":"Short","long":"Long","rounds":"Rounds","shortBreak":"Short break","longBreak":"Long break","roundOf":"Round {r} of {n}","nMin":"{n} min","oneHour":"1 hour","timerSet":"Timer set to {t}","timesUp":"Time's up!","dismiss":"Dismiss","focusDone":"Focus done — take a break","breakOver":"Break over — back to focus","enterDuration":"Enter a duration first","searchCity":"Search city, country or timezone…","chooseCity":"Choose a city","addACityTitle":"Add a city","noMatch":"No matching city or timezone.","added":"Added {x}","alreadyAdded":"{x} is already added","skinToast":"{x} skin","sizeToast":"Size {n}%","fsNA":"Fullscreen not available here","navHint":"to move","selectHint":"to select","closeHint":"to close","shortcuts":"Keyboard shortcuts","kClock":"Big clock","kWorld":"World clock grid","kCompare":"Timezone comparison","kTimers":"Stopwatch / timer / Pomodoro","kFull":"Toggle fullscreen","kSkin":"Next skin (Shift+T previous)","kSettings":"Settings","kAdd":"Add a city","kSize":"Smaller / bigger clock","kSpace":"Start / pause the active timer","kLap":"Lap / reset the active timer","kDay":"Previous / next day in comparison","kNow":"Back to now in comparison","kEsc":"Close panels","helpTip":"Tip: in World view, drag cards to reorder and double-click one to show it on the big clock. In Compare, hover the timeline to convert times and click to pin.","changeTz":"Change timezone","nextSkin":"Next skin","fullscreen":"Fullscreen","moveUp":"Move up","moveDown":"Move down","remove":"Remove"},
+hi:{"clock":"घड़ी","world":"विश्व","compare":"तुलना","timers":"टाइमर","addCityShort":"+ शहर","settings":"सेटिंग्स","language":"भाषा","close":"बंद करें","tSkin":"स्किन","tColors":"रंग","tCities":"शहर","tScreen":"स्क्रीन","size":"आकार","clockSize":"घड़ी का आकार","glow":"चमक","font":"फ़ॉन्ट","typeface":"टाइपफ़ेस","weight":"मोटाई","skinDefault":"स्किन डिफ़ॉल्ट","theme":"थीम","background":"पृष्ठभूमि","text":"टेक्स्ट","accent":"एक्सेंट","style":"शैली","imageUrl":"इमेज URL","darken":"गहरा करें","blur":"धुंधला","skyHint":"लाइव आकाश घड़ी के टाइमज़ोन में दिन के समय के साथ बदलता है।","timezone":"टाइमज़ोन","h24":"24-घंटे का समय","show":"दिखाएँ","seconds":"सेकंड","date":"तारीख","cityName":"शहर का नाम","otherCities":"घड़ी के नीचे अन्य शहर","minuteBar":"मिनट प्रगति पट्टी","moreOptions":"और विकल्प","leadingZero":"शुरुआती शून्य (09:05)","blink":"टिमटिमाता कोलन","sweep":"स्मूद सेकंड सुई (एनालॉग)","addCity":"+ शहर जोड़ें","addACity":"+ एक शहर जोड़ें","workHours":"कार्य समय","worldAnalog":"विश्व कार्ड पर एनालॉग डायल","worldSec":"विश्व कार्ड पर सेकंड","keepAwake":"स्क्रीन चालू रखें","autoHide":"निष्क्रिय होने पर नियंत्रण छिपाएँ","burnIn":"बर्न-इन सुरक्षा","nightDim":"रात में मंद करें","dimFrom":"मंद करें कब से","dimAmount":"मंदता की मात्रा","resetAll":"सभी सेटिंग्स रीसेट करें","settingsReset":"सेटिंग्स रीसेट हुईं","noCities":"अभी कोई शहर नहीं","compareEmpty":"समय की तुलना के लिए शहर जोड़ें","now":"अभी","today":"आज","tomorrow":"कल","yesterday":"बीता कल","nDays":"{n} दिन","sameTime":"समान समय","localTime":"स्थानीय समय","local":"स्थानीय","reference":"संदर्भ","hoverHint":"तुलना के लिए टाइमलाइन पर होवर करें","showing":"{city} में {time} दिखा रहे हैं","clickRelease":"छोड़ने के लिए क्लिक करें","bestTime":"मिलने का सबसे अच्छा समय:","nMore":"+{n} और","showBtn":"दिखाएँ","noOverlap":"ऐसा कोई समय नहीं जब सभी काम पर हों। निकटतम ({n} में से {k}):","noWork":"इस दिन कोई कार्य समय नहीं।","addAnother":"तुलना के लिए एक और शहर जोड़ें।","awake":"जागते","night":"रात","everyoneWorking":"सभी काम पर","stopwatch":"स्टॉपवॉच","timer":"टाइमर","pomodoro":"पोमोडोरो","start":"शुरू","pause":"रोकें","resume":"जारी रखें","lap":"लैप","lapN":"लैप {n}","reset":"रीसेट","skip":"छोड़ें","plus1":"+1 मिनट","set":"सेट करें","focus":"फ़ोकस","short":"छोटा","long":"लंबा","rounds":"राउंड","shortBreak":"छोटा ब्रेक","longBreak":"लंबा ब्रेक","roundOf":"राउंड {r}/{n}","nMin":"{n} मिनट","oneHour":"1 घंटा","timerSet":"टाइमर {t} पर सेट","timesUp":"समय समाप्त!","dismiss":"हटाएँ","focusDone":"फ़ोकस पूरा — ब्रेक लें","breakOver":"ब्रेक खत्म — फ़ोकस पर लौटें","enterDuration":"पहले अवधि दर्ज करें","searchCity":"शहर, देश या टाइमज़ोन खोजें…","chooseCity":"शहर चुनें","addACityTitle":"शहर जोड़ें","noMatch":"कोई मेल खाता शहर या टाइमज़ोन नहीं।","added":"{x} जोड़ा गया","alreadyAdded":"{x} पहले से जोड़ा गया है","skinToast":"{x} स्किन","sizeToast":"आकार {n}%","fsNA":"यहाँ फ़ुलस्क्रीन उपलब्ध नहीं","navHint":"चलाने के लिए","selectHint":"चुनने के लिए","closeHint":"बंद करने के लिए","shortcuts":"कीबोर्ड शॉर्टकट","kClock":"बड़ी घड़ी","kWorld":"विश्व घड़ी ग्रिड","kCompare":"टाइमज़ोन तुलना","kTimers":"स्टॉपवॉच / टाइमर / पोमोडोरो","kFull":"फ़ुलस्क्रीन चालू/बंद","kSkin":"अगली स्किन (Shift+T पिछली)","kSettings":"सेटिंग्स","kAdd":"शहर जोड़ें","kSize":"घड़ी छोटी / बड़ी","kSpace":"सक्रिय टाइमर शुरू / रोकें","kLap":"सक्रिय टाइमर लैप / रीसेट","kDay":"तुलना में पिछला / अगला दिन","kNow":"तुलना में अभी पर लौटें","kEsc":"पैनल बंद करें","helpTip":"सुझाव: विश्व व्यू में कार्ड को खींचकर क्रम बदलें और किसी पर डबल-क्लिक करके उसे बड़ी घड़ी पर दिखाएँ। तुलना में, समय बदलने के लिए टाइमलाइन पर होवर करें और पिन करने के लिए क्लिक करें।","changeTz":"टाइमज़ोन बदलें","nextSkin":"अगली स्किन","fullscreen":"फ़ुलस्क्रीन","moveUp":"ऊपर ले जाएँ","moveDown":"नीचे ले जाएँ","remove":"हटाएँ"},
+bn:{"clock":"ঘড়ি","world":"বিশ্ব","compare":"তুলনা","timers":"টাইমার","addCityShort":"+ শহর","settings":"সেটিংস","language":"ভাষা","close":"বন্ধ করুন","tSkin":"স্কিন","tColors":"রং","tCities":"শহর","tScreen":"স্ক্রিন","size":"আকার","clockSize":"ঘড়ির আকার","glow":"আভা","font":"ফন্ট","typeface":"টাইপফেস","weight":"পুরুত্ব","skinDefault":"স্কিন ডিফল্ট","theme":"থিম","background":"পটভূমি","text":"লেখা","accent":"অ্যাকসেন্ট","style":"স্টাইল","imageUrl":"ছবির URL","darken":"গাঢ় করুন","blur":"ঝাপসা","skyHint":"লাইভ আকাশ ঘড়ির টাইমজোনের সময় অনুযায়ী বদলায়।","timezone":"টাইমজোন","h24":"24-ঘণ্টার সময়","show":"দেখান","seconds":"সেকেন্ড","date":"তারিখ","cityName":"শহরের নাম","otherCities":"ঘড়ির নিচে অন্য শহর","minuteBar":"মিনিট অগ্রগতি বার","moreOptions":"আরও বিকল্প","leadingZero":"শুরুর শূন্য (09:05)","blink":"ঝিকমিক কোলন","sweep":"মসৃণ সেকেন্ডের কাঁটা (অ্যানালগ)","addCity":"+ শহর যোগ করুন","addACity":"+ একটি শহর যোগ করুন","workHours":"কাজের সময়","worldAnalog":"বিশ্ব কার্ডে অ্যানালগ ডায়াল","worldSec":"বিশ্ব কার্ডে সেকেন্ড","keepAwake":"স্ক্রিন চালু রাখুন","autoHide":"নিষ্ক্রিয় থাকলে নিয়ন্ত্রণ লুকান","burnIn":"বার্ন-ইন সুরক্ষা","nightDim":"রাতে আলো কমান","dimFrom":"কখন থেকে কমাবে","dimAmount":"কতটা কমাবে","resetAll":"সব সেটিংস রিসেট করুন","settingsReset":"সেটিংস রিসেট হয়েছে","noCities":"এখনও কোনো শহর নেই","compareEmpty":"সময় তুলনা করতে শহর যোগ করুন","now":"এখন","today":"আজ","tomorrow":"আগামীকাল","yesterday":"গতকাল","nDays":"{n} দিন","sameTime":"একই সময়","localTime":"স্থানীয় সময়","local":"স্থানীয়","reference":"রেফারেন্স","hoverHint":"তুলনা করতে টাইমলাইনে হোভার করুন","showing":"{city}-এ {time} দেখানো হচ্ছে","clickRelease":"ছাড়তে ক্লিক করুন","bestTime":"দেখা করার সেরা সময়:","nMore":"+আরও {n}","showBtn":"দেখান","noOverlap":"এমন কোনো সময় নেই যখন সবাই কাজে থাকে। নিকটতম ({n}-এর মধ্যে {k}):","noWork":"এই দিনে কোনো কাজের সময় নেই।","addAnother":"তুলনা করতে আরেকটি শহর যোগ করুন।","awake":"জাগ্রত","night":"রাত","everyoneWorking":"সবাই কাজে","stopwatch":"স্টপওয়াচ","timer":"টাইমার","pomodoro":"পোমোডোরো","start":"শুরু","pause":"বিরতি","resume":"আবার শুরু","lap":"ল্যাপ","lapN":"ল্যাপ {n}","reset":"রিসেট","skip":"এড়িয়ে যান","plus1":"+1 মিনিট","set":"সেট","focus":"ফোকাস","short":"ছোট","long":"লম্বা","rounds":"রাউন্ড","shortBreak":"ছোট বিরতি","longBreak":"লম্বা বিরতি","roundOf":"রাউন্ড {r}/{n}","nMin":"{n} মিনিট","oneHour":"1 ঘণ্টা","timerSet":"টাইমার {t}-এ সেট হয়েছে","timesUp":"সময় শেষ!","dismiss":"বাতিল","focusDone":"ফোকাস শেষ — বিরতি নিন","breakOver":"বিরতি শেষ — ফোকাসে ফিরুন","enterDuration":"আগে সময়কাল লিখুন","searchCity":"শহর, দেশ বা টাইমজোন খুঁজুন…","chooseCity":"একটি শহর বেছে নিন","addACityTitle":"একটি শহর যোগ করুন","noMatch":"মেলে এমন কোনো শহর বা টাইমজোন নেই।","added":"{x} যোগ হয়েছে","alreadyAdded":"{x} আগেই যোগ করা আছে","skinToast":"{x} স্কিন","sizeToast":"আকার {n}%","fsNA":"এখানে ফুলস্ক্রিন উপলব্ধ নয়","navHint":"সরাতে","selectHint":"বাছতে","closeHint":"বন্ধ করতে","shortcuts":"কিবোর্ড শর্টকাট","kClock":"বড় ঘড়ি","kWorld":"বিশ্ব ঘড়ি গ্রিড","kCompare":"টাইমজোন তুলনা","kTimers":"স্টপওয়াচ / টাইমার / পোমোডোরো","kFull":"ফুলস্ক্রিন চালু/বন্ধ","kSkin":"পরের স্কিন (Shift+T আগের)","kSettings":"সেটিংস","kAdd":"একটি শহর যোগ করুন","kSize":"ঘড়ি ছোট / বড়","kSpace":"সক্রিয় টাইমার শুরু / বিরতি","kLap":"সক্রিয় টাইমার ল্যাপ / রিসেট","kDay":"তুলনায় আগের / পরের দিন","kNow":"তুলনায় এখনে ফিরুন","kEsc":"প্যানেল বন্ধ করুন","helpTip":"টিপ: বিশ্ব ভিউতে কার্ড টেনে ক্রম বদলান এবং কোনো কার্ডে ডাবল-ক্লিক করে সেটি বড় ঘড়িতে দেখান। তুলনায়, সময় রূপান্তর করতে টাইমলাইনে হোভার করুন এবং পিন করতে ক্লিক করুন।","changeTz":"টাইমজোন বদলান","nextSkin":"পরের স্কিন","fullscreen":"ফুলস্ক্রিন","moveUp":"উপরে সরান","moveDown":"নিচে সরান","remove":"সরান"},
+ta:{"clock":"கடிகாரம்","world":"உலகம்","compare":"ஒப்பிடு","timers":"டைமர்கள்","addCityShort":"+ நகரம்","settings":"அமைப்புகள்","language":"மொழி","close":"மூடு","tSkin":"ஸ்கின்","tColors":"நிறங்கள்","tCities":"நகரங்கள்","tScreen":"திரை","size":"அளவு","clockSize":"கடிகார அளவு","glow":"ஒளிர்வு","font":"எழுத்துரு","typeface":"எழுத்து வடிவம்","weight":"தடிமன்","skinDefault":"ஸ்கின் இயல்புநிலை","theme":"தீம்","background":"பின்னணி","text":"உரை","accent":"அக்சென்ட்","style":"பாணி","imageUrl":"பட URL","darken":"இருட்டாக்கு","blur":"மங்கல்","skyHint":"நேரலை வானம் கடிகாரத்தின் நேர மண்டலத்தில் உள்ள நேரத்தைப் பின்பற்றும்.","timezone":"நேர மண்டலம்","h24":"24-மணி நேரம்","show":"காட்டு","seconds":"விநாடிகள்","date":"தேதி","cityName":"நகரப் பெயர்","otherCities":"கடிகாரத்தின் கீழ் பிற நகரங்கள்","minuteBar":"நிமிட முன்னேற்றப் பட்டி","moreOptions":"மேலும் விருப்பங்கள்","leadingZero":"முன்னணி பூஜ்ஜியம் (09:05)","blink":"சிமிட்டும் கோலன்","sweep":"மென்மையான விநாடி முள் (அனலாக்)","addCity":"+ நகரம் சேர்","addACity":"+ ஒரு நகரம் சேர்","workHours":"வேலை நேரம்","worldAnalog":"உலக அட்டைகளில் அனலாக் டயல்கள்","worldSec":"உலக அட்டைகளில் விநாடிகள்","keepAwake":"திரையை இயக்கத்தில் வை","autoHide":"செயலற்றபோது கட்டுப்பாடுகளை மறை","burnIn":"பர்ன்-இன் பாதுகாப்பு","nightDim":"இரவில் மங்கச்செய்","dimFrom":"மங்கும் நேரம்","dimAmount":"மங்கல் அளவு","resetAll":"எல்லா அமைப்புகளையும் மீட்டமை","settingsReset":"அமைப்புகள் மீட்டமைக்கப்பட்டன","noCities":"இன்னும் நகரங்கள் இல்லை","compareEmpty":"நேரங்களை ஒப்பிட நகரங்களைச் சேர்க்கவும்","now":"இப்போது","today":"இன்று","tomorrow":"நாளை","yesterday":"நேற்று","nDays":"{n} நாட்கள்","sameTime":"அதே நேரம்","localTime":"உள்ளூர் நேரம்","local":"உள்ளூர்","reference":"குறிப்பு","hoverHint":"ஒப்பிட காலவரிசை மீது நகர்த்தவும்","showing":"{city} இல் {time} காட்டப்படுகிறது","clickRelease":"விடுவிக்க கிளிக் செய்யவும்","bestTime":"சந்திக்க சிறந்த நேரம்:","nMore":"+மேலும் {n}","showBtn":"காட்டு","noOverlap":"அனைவரும் வேலை செய்யும் நேரம் இல்லை. நெருக்கமானது ({n} இல் {k}):","noWork":"இந்த நாளில் வேலை நேரம் இல்லை.","addAnother":"ஒப்பிட மற்றொரு நகரத்தைச் சேர்க்கவும்.","awake":"விழிப்பு","night":"இரவு","everyoneWorking":"அனைவரும் வேலையில்","stopwatch":"ஸ்டாப்வாட்ச்","timer":"டைமர்","pomodoro":"பொமோடோரோ","start":"தொடங்கு","pause":"இடைநிறுத்து","resume":"தொடர்","lap":"லேப்","lapN":"லேப் {n}","reset":"மீட்டமை","skip":"தவிர்","plus1":"+1 நிமி","set":"அமை","focus":"கவனம்","short":"குறுகிய","long":"நீண்ட","rounds":"சுற்றுகள்","shortBreak":"சிறு இடைவேளை","longBreak":"நீண்ட இடைவேளை","roundOf":"சுற்று {r}/{n}","nMin":"{n} நிமி","oneHour":"1 மணி நேரம்","timerSet":"டைமர் {t} க்கு அமைக்கப்பட்டது","timesUp":"நேரம் முடிந்தது!","dismiss":"நிராகரி","focusDone":"கவனம் முடிந்தது — இடைவேளை எடுங்கள்","breakOver":"இடைவேளை முடிந்தது — கவனத்திற்குத் திரும்புங்கள்","enterDuration":"முதலில் கால அளவை உள்ளிடவும்","searchCity":"நகரம், நாடு அல்லது நேர மண்டலத்தைத் தேடு…","chooseCity":"ஒரு நகரத்தைத் தேர்ந்தெடு","addACityTitle":"ஒரு நகரம் சேர்","noMatch":"பொருந்தும் நகரம் அல்லது நேர மண்டலம் இல்லை.","added":"{x} சேர்க்கப்பட்டது","alreadyAdded":"{x} ஏற்கனவே சேர்க்கப்பட்டுள்ளது","skinToast":"{x} ஸ்கின்","sizeToast":"அளவு {n}%","fsNA":"இங்கே முழுத்திரை கிடைக்கவில்லை","navHint":"நகர்த்த","selectHint":"தேர்ந்தெடுக்க","closeHint":"மூட","shortcuts":"விசைப்பலகை குறுக்குவழிகள்","kClock":"பெரிய கடிகாரம்","kWorld":"உலகக் கடிகார கட்டம்","kCompare":"நேர மண்டல ஒப்பீடு","kTimers":"ஸ்டாப்வாட்ச் / டைமர் / பொமோடோரோ","kFull":"முழுத்திரை மாற்று","kSkin":"அடுத்த ஸ்கின் (Shift+T முந்தையது)","kSettings":"அமைப்புகள்","kAdd":"ஒரு நகரம் சேர்","kSize":"கடிகாரம் சிறிது / பெரிது","kSpace":"செயலில் உள்ள டைமரைத் தொடங்கு / இடைநிறுத்து","kLap":"செயலில் உள்ள டைமர் லேப் / மீட்டமை","kDay":"ஒப்பீட்டில் முந்தைய / அடுத்த நாள்","kNow":"ஒப்பீட்டில் இப்போதைக்குத் திரும்பு","kEsc":"பேனல்களை மூடு","helpTip":"குறிப்பு: உலகக் காட்சியில், அட்டைகளை இழுத்து வரிசையை மாற்றலாம்; ஒன்றை இருமுறை கிளிக் செய்து பெரிய கடிகாரத்தில் காட்டலாம். ஒப்பீட்டில், நேரங்களை மாற்ற காலவரிசை மீது நகர்த்தி, பின் செய்ய கிளிக் செய்யவும்.","changeTz":"நேர மண்டலத்தை மாற்று","nextSkin":"அடுத்த ஸ்கின்","fullscreen":"முழுத்திரை","moveUp":"மேலே நகர்த்து","moveDown":"கீழே நகர்த்து","remove":"அகற்று"},
+te:{"clock":"గడియారం","world":"ప్రపంచం","compare":"పోల్చు","timers":"టైమర్లు","addCityShort":"+ నగరం","settings":"సెట్టింగ్‌లు","language":"భాష","close":"మూసివేయి","tSkin":"స్కిన్","tColors":"రంగులు","tCities":"నగరాలు","tScreen":"స్క్రీన్","size":"పరిమాణం","clockSize":"గడియారం పరిమాణం","glow":"కాంతి","font":"ఫాంట్","typeface":"టైప్‌ఫేస్","weight":"మందం","skinDefault":"స్కిన్ డిఫాల్ట్","theme":"థీమ్","background":"నేపథ్యం","text":"టెక్స్ట్","accent":"యాక్సెంట్","style":"శైలి","imageUrl":"చిత్రం URL","darken":"ముదురు చేయి","blur":"మసక","skyHint":"లైవ్ ఆకాశం గడియారం టైమ్‌జోన్‌లోని సమయాన్ని అనుసరిస్తుంది.","timezone":"టైమ్‌జోన్","h24":"24-గంటల సమయం","show":"చూపించు","seconds":"సెకన్లు","date":"తేదీ","cityName":"నగరం పేరు","otherCities":"గడియారం కింద ఇతర నగరాలు","minuteBar":"నిమిషం పురోగతి బార్","moreOptions":"మరిన్ని ఎంపికలు","leadingZero":"ముందు సున్నా (09:05)","blink":"మెరిసే కోలన్","sweep":"సాఫీ సెకన్ల ముల్లు (అనలాగ్)","addCity":"+ నగరం జోడించు","addACity":"+ ఒక నగరం జోడించు","workHours":"పని గంటలు","worldAnalog":"ప్రపంచ కార్డులపై అనలాగ్ డయల్స్","worldSec":"ప్రపంచ కార్డులపై సెకన్లు","keepAwake":"స్క్రీన్ ఆన్‌లో ఉంచు","autoHide":"నిష్క్రియంగా ఉన్నప్పుడు నియంత్రణలు దాచు","burnIn":"బర్న్-ఇన్ రక్షణ","nightDim":"రాత్రి మసకబార్చు","dimFrom":"మసకబార్చే సమయం","dimAmount":"మసక మోతాదు","resetAll":"అన్ని సెట్టింగ్‌లు రీసెట్ చేయి","settingsReset":"సెట్టింగ్‌లు రీసెట్ అయ్యాయి","noCities":"ఇంకా నగరాలు లేవు","compareEmpty":"సమయాలు పోల్చడానికి నగరాలు జోడించండి","now":"ఇప్పుడు","today":"ఈ రోజు","tomorrow":"రేపు","yesterday":"నిన్న","nDays":"{n} రోజులు","sameTime":"అదే సమయం","localTime":"స్థానిక సమయం","local":"స్థానిక","reference":"రిఫరెన్స్","hoverHint":"పోల్చడానికి టైమ్‌లైన్‌పై హోవర్ చేయండి","showing":"{city}లో {time} చూపిస్తోంది","clickRelease":"విడుదల చేయడానికి క్లిక్ చేయండి","bestTime":"కలవడానికి ఉత్తమ సమయం:","nMore":"+మరో {n}","showBtn":"చూపించు","noOverlap":"అందరూ పని చేసే సమయం లేదు. దగ్గరిది ({n}లో {k}):","noWork":"ఈ రోజున పని గంటలు లేవు.","addAnother":"పోల్చడానికి మరో నగరం జోడించండి.","awake":"మేల్కొని","night":"రాత్రి","everyoneWorking":"అందరూ పనిలో","stopwatch":"స్టాప్‌వాచ్","timer":"టైమర్","pomodoro":"పొమోడోరో","start":"ప్రారంభించు","pause":"పాజ్","resume":"కొనసాగించు","lap":"ల్యాప్","lapN":"ల్యాప్ {n}","reset":"రీసెట్","skip":"దాటవేయి","plus1":"+1 నిమి","set":"సెట్","focus":"ఫోకస్","short":"చిన్న","long":"పెద్ద","rounds":"రౌండ్లు","shortBreak":"చిన్న విరామం","longBreak":"పెద్ద విరామం","roundOf":"రౌండ్ {r}/{n}","nMin":"{n} నిమి","oneHour":"1 గంట","timerSet":"టైమర్ {t}కి సెట్ చేయబడింది","timesUp":"సమయం ముగిసింది!","dismiss":"తీసివేయి","focusDone":"ఫోకస్ పూర్తి — విరామం తీసుకోండి","breakOver":"విరామం ముగిసింది — ఫోకస్‌కి తిరిగి రండి","enterDuration":"ముందుగా వ్యవధి నమోదు చేయండి","searchCity":"నగరం, దేశం లేదా టైమ్‌జోన్ వెతకండి…","chooseCity":"ఒక నగరాన్ని ఎంచుకోండి","addACityTitle":"ఒక నగరం జోడించు","noMatch":"సరిపోలే నగరం లేదా టైమ్‌జోన్ లేదు.","added":"{x} జోడించబడింది","alreadyAdded":"{x} ఇప్పటికే జోడించబడింది","skinToast":"{x} స్కిన్","sizeToast":"పరిమాణం {n}%","fsNA":"ఇక్కడ ఫుల్‌స్క్రీన్ అందుబాటులో లేదు","navHint":"కదిలించడానికి","selectHint":"ఎంచుకోవడానికి","closeHint":"మూసివేయడానికి","shortcuts":"కీబోర్డ్ షార్ట్‌కట్‌లు","kClock":"పెద్ద గడియారం","kWorld":"ప్రపంచ గడియారం గ్రిడ్","kCompare":"టైమ్‌జోన్ పోలిక","kTimers":"స్టాప్‌వాచ్ / టైమర్ / పొమోడోరో","kFull":"ఫుల్‌స్క్రీన్ ఆన్/ఆఫ్","kSkin":"తదుపరి స్కిన్ (Shift+T మునుపటిది)","kSettings":"సెట్టింగ్‌లు","kAdd":"ఒక నగరం జోడించు","kSize":"గడియారం చిన్నది / పెద్దది","kSpace":"యాక్టివ్ టైమర్ ప్రారంభించు / పాజ్","kLap":"యాక్టివ్ టైమర్ ల్యాప్ / రీసెట్","kDay":"పోలికలో మునుపటి / తదుపరి రోజు","kNow":"పోలికలో ఇప్పటికి తిరిగి వెళ్ళు","kEsc":"ప్యానెల్‌లు మూసివేయి","helpTip":"చిట్కా: ప్రపంచ వీక్షణలో, కార్డులను లాగి క్రమం మార్చండి; ఒకదానిపై డబుల్-క్లిక్ చేసి పెద్ద గడియారంలో చూపించండి. పోలికలో, సమయాలు మార్చడానికి టైమ్‌లైన్‌పై హోవర్ చేసి, పిన్ చేయడానికి క్లిక్ చేయండి.","changeTz":"టైమ్‌జోన్ మార్చు","nextSkin":"తదుపరి స్కిన్","fullscreen":"ఫుల్‌స్క్రీన్","moveUp":"పైకి జరుపు","moveDown":"కిందికి జరుపు","remove":"తీసివేయి"},
+kn:{"clock":"ಗಡಿಯಾರ","world":"ವಿಶ್ವ","compare":"ಹೋಲಿಕೆ","timers":"ಟೈಮರ್‌ಗಳು","addCityShort":"+ ನಗರ","settings":"ಸೆಟ್ಟಿಂಗ್‌ಗಳು","language":"ಭಾಷೆ","close":"ಮುಚ್ಚಿ","tSkin":"ಸ್ಕಿನ್","tColors":"ಬಣ್ಣಗಳು","tCities":"ನಗರಗಳು","tScreen":"ಪರದೆ","size":"ಗಾತ್ರ","clockSize":"ಗಡಿಯಾರದ ಗಾತ್ರ","glow":"ಹೊಳಪು","font":"ಫಾಂಟ್","typeface":"ಟೈಪ್‌ಫೇಸ್","weight":"ದಪ್ಪ","skinDefault":"ಸ್ಕಿನ್ ಡೀಫಾಲ್ಟ್","theme":"ಥೀಮ್","background":"ಹಿನ್ನೆಲೆ","text":"ಪಠ್ಯ","accent":"ಆಕ್ಸೆಂಟ್","style":"ಶೈಲಿ","imageUrl":"ಚಿತ್ರದ URL","darken":"ಗಾಢಗೊಳಿಸಿ","blur":"ಮಸುಕು","skyHint":"ಲೈವ್ ಆಕಾಶವು ಗಡಿಯಾರದ ಸಮಯವಲಯದ ದಿನದ ಸಮಯವನ್ನು ಅನುಸರಿಸುತ್ತದೆ.","timezone":"ಸಮಯವಲಯ","h24":"24-ಗಂಟೆಯ ಸಮಯ","show":"ತೋರಿಸಿ","seconds":"ಸೆಕೆಂಡುಗಳು","date":"ದಿನಾಂಕ","cityName":"ನಗರದ ಹೆಸರು","otherCities":"ಗಡಿಯಾರದ ಕೆಳಗೆ ಇತರ ನಗರಗಳು","minuteBar":"ನಿಮಿಷದ ಪ್ರಗತಿ ಪಟ್ಟಿ","moreOptions":"ಇನ್ನಷ್ಟು ಆಯ್ಕೆಗಳು","leadingZero":"ಮುಂಚಿನ ಸೊನ್ನೆ (09:05)","blink":"ಮಿನುಗುವ ಕೋಲನ್","sweep":"ನಯವಾದ ಸೆಕೆಂಡ್ ಮುಳ್ಳು (ಅನಲಾಗ್)","addCity":"+ ನಗರ ಸೇರಿಸಿ","addACity":"+ ಒಂದು ನಗರ ಸೇರಿಸಿ","workHours":"ಕೆಲಸದ ಸಮಯ","worldAnalog":"ವಿಶ್ವ ಕಾರ್ಡ್‌ಗಳಲ್ಲಿ ಅನಲಾಗ್ ಡಯಲ್‌ಗಳು","worldSec":"ವಿಶ್ವ ಕಾರ್ಡ್‌ಗಳಲ್ಲಿ ಸೆಕೆಂಡುಗಳು","keepAwake":"ಪರದೆಯನ್ನು ಆನ್ ಇರಿಸಿ","autoHide":"ನಿಷ್ಕ್ರಿಯವಾಗಿರುವಾಗ ನಿಯಂತ್ರಣ ಮರೆಮಾಡಿ","burnIn":"ಬರ್ನ್-ಇನ್ ರಕ್ಷಣೆ","nightDim":"ರಾತ್ರಿ ಮಂದಗೊಳಿಸಿ","dimFrom":"ಮಂದಗೊಳಿಸುವ ಸಮಯ","dimAmount":"ಮಂದದ ಪ್ರಮಾಣ","resetAll":"ಎಲ್ಲಾ ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ಮರುಹೊಂದಿಸಿ","settingsReset":"ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ಮರುಹೊಂದಿಸಲಾಗಿದೆ","noCities":"ಇನ್ನೂ ನಗರಗಳಿಲ್ಲ","compareEmpty":"ಸಮಯ ಹೋಲಿಸಲು ನಗರಗಳನ್ನು ಸೇರಿಸಿ","now":"ಈಗ","today":"ಇಂದು","tomorrow":"ನಾಳೆ","yesterday":"ನಿನ್ನೆ","nDays":"{n} ದಿನಗಳು","sameTime":"ಅದೇ ಸಮಯ","localTime":"ಸ್ಥಳೀಯ ಸಮಯ","local":"ಸ್ಥಳೀಯ","reference":"ಉಲ್ಲೇಖ","hoverHint":"ಹೋಲಿಸಲು ಟೈಮ್‌ಲೈನ್ ಮೇಲೆ ಹೋವರ್ ಮಾಡಿ","showing":"{city}ನಲ್ಲಿ {time} ತೋರಿಸಲಾಗುತ್ತಿದೆ","clickRelease":"ಬಿಡುಗಡೆಗೆ ಕ್ಲಿಕ್ ಮಾಡಿ","bestTime":"ಭೇಟಿಗೆ ಉತ್ತಮ ಸಮಯ:","nMore":"+ಇನ್ನೂ {n}","showBtn":"ತೋರಿಸಿ","noOverlap":"ಎಲ್ಲರೂ ಕೆಲಸ ಮಾಡುವ ಸಮಯವಿಲ್ಲ. ಹತ್ತಿರದ್ದು ({n} ರಲ್ಲಿ {k}):","noWork":"ಈ ದಿನ ಕೆಲಸದ ಸಮಯವಿಲ್ಲ.","addAnother":"ಹೋಲಿಸಲು ಇನ್ನೊಂದು ನಗರ ಸೇರಿಸಿ.","awake":"ಎಚ್ಚರ","night":"ರಾತ್ರಿ","everyoneWorking":"ಎಲ್ಲರೂ ಕೆಲಸದಲ್ಲಿ","stopwatch":"ಸ್ಟಾಪ್‌ವಾಚ್","timer":"ಟೈಮರ್","pomodoro":"ಪೊಮೊಡೊರೊ","start":"ಪ್ರಾರಂಭಿಸಿ","pause":"ವಿರಾಮ","resume":"ಮುಂದುವರಿಸಿ","lap":"ಲ್ಯಾಪ್","lapN":"ಲ್ಯಾಪ್ {n}","reset":"ಮರುಹೊಂದಿಸಿ","skip":"ಬಿಟ್ಟುಬಿಡಿ","plus1":"+1 ನಿಮಿ","set":"ಹೊಂದಿಸಿ","focus":"ಫೋಕಸ್","short":"ಚಿಕ್ಕ","long":"ದೀರ್ಘ","rounds":"ಸುತ್ತುಗಳು","shortBreak":"ಚಿಕ್ಕ ವಿರಾಮ","longBreak":"ದೀರ್ಘ ವಿರಾಮ","roundOf":"ಸುತ್ತು {r}/{n}","nMin":"{n} ನಿಮಿ","oneHour":"1 ಗಂಟೆ","timerSet":"ಟೈಮರ್ {t}ಗೆ ಹೊಂದಿಸಲಾಗಿದೆ","timesUp":"ಸಮಯ ಮುಗಿಯಿತು!","dismiss":"ವಜಾಗೊಳಿಸಿ","focusDone":"ಫೋಕಸ್ ಮುಗಿಯಿತು — ವಿರಾಮ ತೆಗೆದುಕೊಳ್ಳಿ","breakOver":"ವಿರಾಮ ಮುಗಿಯಿತು — ಫೋಕಸ್‌ಗೆ ಮರಳಿ","enterDuration":"ಮೊದಲು ಅವಧಿಯನ್ನು ನಮೂದಿಸಿ","searchCity":"ನಗರ, ದೇಶ ಅಥವಾ ಸಮಯವಲಯ ಹುಡುಕಿ…","chooseCity":"ಒಂದು ನಗರ ಆಯ್ಕೆಮಾಡಿ","addACityTitle":"ಒಂದು ನಗರ ಸೇರಿಸಿ","noMatch":"ಹೊಂದುವ ನಗರ ಅಥವಾ ಸಮಯವಲಯ ಇಲ್ಲ.","added":"{x} ಸೇರಿಸಲಾಗಿದೆ","alreadyAdded":"{x} ಈಗಾಗಲೇ ಸೇರಿಸಲಾಗಿದೆ","skinToast":"{x} ಸ್ಕಿನ್","sizeToast":"ಗಾತ್ರ {n}%","fsNA":"ಇಲ್ಲಿ ಪೂರ್ಣಪರದೆ ಲಭ್ಯವಿಲ್ಲ","navHint":"ಸರಿಸಲು","selectHint":"ಆಯ್ಕೆಮಾಡಲು","closeHint":"ಮುಚ್ಚಲು","shortcuts":"ಕೀಬೋರ್ಡ್ ಶಾರ್ಟ್‌ಕಟ್‌ಗಳು","kClock":"ದೊಡ್ಡ ಗಡಿಯಾರ","kWorld":"ವಿಶ್ವ ಗಡಿಯಾರ ಗ್ರಿಡ್","kCompare":"ಸಮಯವಲಯ ಹೋಲಿಕೆ","kTimers":"ಸ್ಟಾಪ್‌ವಾಚ್ / ಟೈಮರ್ / ಪೊಮೊಡೊರೊ","kFull":"ಪೂರ್ಣಪರದೆ ಆನ್/ಆಫ್","kSkin":"ಮುಂದಿನ ಸ್ಕಿನ್ (Shift+T ಹಿಂದಿನದು)","kSettings":"ಸೆಟ್ಟಿಂಗ್‌ಗಳು","kAdd":"ಒಂದು ನಗರ ಸೇರಿಸಿ","kSize":"ಗಡಿಯಾರ ಚಿಕ್ಕದು / ದೊಡ್ಡದು","kSpace":"ಸಕ್ರಿಯ ಟೈಮರ್ ಪ್ರಾರಂಭ / ವಿರಾಮ","kLap":"ಸಕ್ರಿಯ ಟೈಮರ್ ಲ್ಯಾಪ್ / ಮರುಹೊಂದಿಸಿ","kDay":"ಹೋಲಿಕೆಯಲ್ಲಿ ಹಿಂದಿನ / ಮುಂದಿನ ದಿನ","kNow":"ಹೋಲಿಕೆಯಲ್ಲಿ ಈಗಿನ ಸಮಯಕ್ಕೆ ಮರಳಿ","kEsc":"ಪ್ಯಾನೆಲ್‌ಗಳನ್ನು ಮುಚ್ಚಿ","helpTip":"ಸಲಹೆ: ವಿಶ್ವ ವೀಕ್ಷಣೆಯಲ್ಲಿ, ಕಾರ್ಡ್‌ಗಳನ್ನು ಎಳೆದು ಕ್ರಮ ಬದಲಾಯಿಸಿ; ಒಂದನ್ನು ಡಬಲ್-ಕ್ಲಿಕ್ ಮಾಡಿ ದೊಡ್ಡ ಗಡಿಯಾರದಲ್ಲಿ ತೋರಿಸಿ. ಹೋಲಿಕೆಯಲ್ಲಿ, ಸಮಯ ಪರಿವರ್ತಿಸಲು ಟೈಮ್‌ಲೈನ್ ಮೇಲೆ ಹೋವರ್ ಮಾಡಿ ಮತ್ತು ಪಿನ್ ಮಾಡಲು ಕ್ಲಿಕ್ ಮಾಡಿ.","changeTz":"ಸಮಯವಲಯ ಬದಲಾಯಿಸಿ","nextSkin":"ಮುಂದಿನ ಸ್ಕಿನ್","fullscreen":"ಪೂರ್ಣಪರದೆ","moveUp":"ಮೇಲೆ ಸರಿಸಿ","moveDown":"ಕೆಳಗೆ ಸರಿಸಿ","remove":"ತೆಗೆದುಹಾಕಿ"},
+ml:{"clock":"ക്ലോക്ക്","world":"ലോകം","compare":"താരതമ്യം","timers":"ടൈമറുകൾ","addCityShort":"+ നഗരം","settings":"ക്രമീകരണങ്ങൾ","language":"ഭാഷ","close":"അടയ്ക്കുക","tSkin":"സ്കിൻ","tColors":"നിറങ്ങൾ","tCities":"നഗരങ്ങൾ","tScreen":"സ്ക്രീൻ","size":"വലുപ്പം","clockSize":"ക്ലോക്കിന്റെ വലുപ്പം","glow":"തിളക്കം","font":"ഫോണ്ട്","typeface":"ടൈപ്പ്ഫേസ്","weight":"കനം","skinDefault":"സ്കിൻ ഡിഫോൾട്ട്","theme":"തീം","background":"പശ്ചാത്തലം","text":"ടെക്സ്റ്റ്","accent":"ആക്സന്റ്","style":"ശൈലി","imageUrl":"ചിത്ര URL","darken":"ഇരുണ്ടതാക്കുക","blur":"മങ്ങൽ","skyHint":"ലൈവ് ആകാശം ക്ലോക്കിന്റെ സമയമേഖലയിലെ ദിവസസമയം പിന്തുടരുന്നു.","timezone":"സമയമേഖല","h24":"24-മണിക്കൂർ സമയം","show":"കാണിക്കുക","seconds":"സെക്കൻഡുകൾ","date":"തീയതി","cityName":"നഗരത്തിന്റെ പേര്","otherCities":"ക്ലോക്കിന് താഴെ മറ്റ് നഗരങ്ങൾ","minuteBar":"മിനിറ്റ് പുരോഗതി ബാർ","moreOptions":"കൂടുതൽ ഓപ്ഷനുകൾ","leadingZero":"മുൻ പൂജ്യം (09:05)","blink":"മിന്നുന്ന കോളൻ","sweep":"സുഗമമായ സെക്കൻഡ് സൂചി (അനലോഗ്)","addCity":"+ നഗരം ചേർക്കുക","addACity":"+ ഒരു നഗരം ചേർക്കുക","workHours":"ജോലി സമയം","worldAnalog":"ലോക കാർഡുകളിൽ അനലോഗ് ഡയലുകൾ","worldSec":"ലോക കാർഡുകളിൽ സെക്കൻഡുകൾ","keepAwake":"സ്ക്രീൻ ഓണാക്കി വെക്കുക","autoHide":"നിഷ്ക്രിയമാകുമ്പോൾ നിയന്ത്രണങ്ങൾ മറയ്ക്കുക","burnIn":"ബേൺ-ഇൻ സംരക്ഷണം","nightDim":"രാത്രിയിൽ മങ്ങിക്കുക","dimFrom":"മങ്ങിക്കുന്ന സമയം","dimAmount":"മങ്ങലിന്റെ അളവ്","resetAll":"എല്ലാ ക്രമീകരണങ്ങളും റീസെറ്റ് ചെയ്യുക","settingsReset":"ക്രമീകരണങ്ങൾ റീസെറ്റ് ചെയ്തു","noCities":"ഇതുവരെ നഗരങ്ങളില്ല","compareEmpty":"സമയം താരതമ്യം ചെയ്യാൻ നഗരങ്ങൾ ചേർക്കുക","now":"ഇപ്പോൾ","today":"ഇന്ന്","tomorrow":"നാളെ","yesterday":"ഇന്നലെ","nDays":"{n} ദിവസം","sameTime":"ഒരേ സമയം","localTime":"പ്രാദേശിക സമയം","local":"പ്രാദേശികം","reference":"റഫറൻസ്","hoverHint":"താരതമ്യം ചെയ്യാൻ ടൈംലൈനിൽ ഹോവർ ചെയ്യുക","showing":"{city}-ൽ {time} കാണിക്കുന്നു","clickRelease":"വിടാൻ ക്ലിക്ക് ചെയ്യുക","bestTime":"കണ്ടുമുട്ടാൻ മികച്ച സമയം:","nMore":"+{n} കൂടി","showBtn":"കാണിക്കുക","noOverlap":"എല്ലാവരും ജോലി ചെയ്യുന്ന സമയമില്ല. ഏറ്റവും അടുത്തത് ({n}-ൽ {k}):","noWork":"ഈ ദിവസം ജോലി സമയമില്ല.","addAnother":"താരതമ്യം ചെയ്യാൻ മറ്റൊരു നഗരം ചേർക്കുക.","awake":"ഉണർന്ന്","night":"രാത്രി","everyoneWorking":"എല്ലാവരും ജോലിയിൽ","stopwatch":"സ്റ്റോപ്പ്‌വാച്ച്","timer":"ടൈമർ","pomodoro":"പൊമോഡോറോ","start":"ആരംഭിക്കുക","pause":"പോസ്","resume":"തുടരുക","lap":"ലാപ്","lapN":"ലാപ് {n}","reset":"റീസെറ്റ്","skip":"ഒഴിവാക്കുക","plus1":"+1 മിനിറ്റ്","set":"സജ്ജമാക്കുക","focus":"ഫോക്കസ്","short":"ചെറുത്","long":"നീണ്ടത്","rounds":"റൗണ്ടുകൾ","shortBreak":"ചെറിയ ഇടവേള","longBreak":"നീണ്ട ഇടവേള","roundOf":"റൗണ്ട് {r}/{n}","nMin":"{n} മിനിറ്റ്","oneHour":"1 മണിക്കൂർ","timerSet":"ടൈമർ {t} ആയി സജ്ജമാക്കി","timesUp":"സമയം കഴിഞ്ഞു!","dismiss":"ഒഴിവാക്കുക","focusDone":"ഫോക്കസ് കഴിഞ്ഞു — ഇടവേള എടുക്കൂ","breakOver":"ഇടവേള കഴിഞ്ഞു — ഫോക്കസിലേക്ക് മടങ്ങൂ","enterDuration":"ആദ്യം ദൈർഘ്യം നൽകുക","searchCity":"നഗരം, രാജ്യം അല്ലെങ്കിൽ സമയമേഖല തിരയുക…","chooseCity":"ഒരു നഗരം തിരഞ്ഞെടുക്കുക","addACityTitle":"ഒരു നഗരം ചേർക്കുക","noMatch":"പൊരുത്തപ്പെടുന്ന നഗരമോ സമയമേഖലയോ ഇല്ല.","added":"{x} ചേർത്തു","alreadyAdded":"{x} ഇതിനകം ചേർത്തിട്ടുണ്ട്","skinToast":"{x} സ്കിൻ","sizeToast":"വലുപ്പം {n}%","fsNA":"ഇവിടെ ഫുൾസ്ക്രീൻ ലഭ്യമല്ല","navHint":"നീക്കാൻ","selectHint":"തിരഞ്ഞെടുക്കാൻ","closeHint":"അടയ്ക്കാൻ","shortcuts":"കീബോർഡ് കുറുക്കുവഴികൾ","kClock":"വലിയ ക്ലോക്ക്","kWorld":"ലോക ക്ലോക്ക് ഗ്രിഡ്","kCompare":"സമയമേഖല താരതമ്യം","kTimers":"സ്റ്റോപ്പ്‌വാച്ച് / ടൈമർ / പൊമോഡോറോ","kFull":"ഫുൾസ്ക്രീൻ ഓൺ/ഓഫ്","kSkin":"അടുത്ത സ്കിൻ (Shift+T മുമ്പത്തേത്)","kSettings":"ക്രമീകരണങ്ങൾ","kAdd":"ഒരു നഗരം ചേർക്കുക","kSize":"ക്ലോക്ക് ചെറുതാക്കുക / വലുതാക്കുക","kSpace":"സജീവ ടൈമർ ആരംഭിക്കുക / നിർത്തുക","kLap":"സജീവ ടൈമർ ലാപ് / റീസെറ്റ്","kDay":"താരതമ്യത്തിൽ മുമ്പത്തെ / അടുത്ത ദിവസം","kNow":"താരതമ്യത്തിൽ ഇപ്പോഴത്തേക്ക് മടങ്ങുക","kEsc":"പാനലുകൾ അടയ്ക്കുക","helpTip":"നുറുങ്ങ്: ലോക കാഴ്ചയിൽ, കാർഡുകൾ വലിച്ചിട്ട് ക്രമം മാറ്റാം; ഒന്നിൽ ഡബിൾ-ക്ലിക്ക് ചെയ്ത് വലിയ ക്ലോക്കിൽ കാണിക്കാം. താരതമ്യത്തിൽ, സമയം മാറ്റാൻ ടൈംലൈനിൽ ഹോവർ ചെയ്യുക, പിൻ ചെയ്യാൻ ക്ലിക്ക് ചെയ്യുക.","changeTz":"സമയമേഖല മാറ്റുക","nextSkin":"അടുത്ത സ്കിൻ","fullscreen":"ഫുൾസ്ക്രീൻ","moveUp":"മുകളിലേക്ക് നീക്കുക","moveDown":"താഴേക്ക് നീക്കുക","remove":"നീക്കം ചെയ്യുക"},
+mr:{"clock":"घड्याळ","world":"जग","compare":"तुलना","timers":"टायमर","addCityShort":"+ शहर","settings":"सेटिंग्ज","language":"भाषा","close":"बंद करा","tSkin":"स्किन","tColors":"रंग","tCities":"शहरे","tScreen":"स्क्रीन","size":"आकार","clockSize":"घड्याळाचा आकार","glow":"चमक","font":"फॉन्ट","typeface":"टाइपफेस","weight":"जाडी","skinDefault":"स्किन डीफॉल्ट","theme":"थीम","background":"पार्श्वभूमी","text":"मजकूर","accent":"अ‍ॅक्सेंट","style":"शैली","imageUrl":"प्रतिमा URL","darken":"गडद करा","blur":"धूसर","skyHint":"लाइव्ह आकाश घड्याळाच्या टाइमझोनमधील दिवसाच्या वेळेनुसार बदलते.","timezone":"टाइमझोन","h24":"24-तास वेळ","show":"दाखवा","seconds":"सेकंद","date":"तारीख","cityName":"शहराचे नाव","otherCities":"घड्याळाखाली इतर शहरे","minuteBar":"मिनिट प्रगती पट्टी","moreOptions":"अधिक पर्याय","leadingZero":"सुरुवातीचे शून्य (09:05)","blink":"लुकलुकणारा कोलन","sweep":"सुरळीत सेकंद काटा (अ‍ॅनालॉग)","addCity":"+ शहर जोडा","addACity":"+ एक शहर जोडा","workHours":"कामाचे तास","worldAnalog":"जागतिक कार्डांवर अ‍ॅनालॉग डायल","worldSec":"जागतिक कार्डांवर सेकंद","keepAwake":"स्क्रीन चालू ठेवा","autoHide":"निष्क्रिय असताना नियंत्रणे लपवा","burnIn":"बर्न-इन संरक्षण","nightDim":"रात्री मंद करा","dimFrom":"मंद करण्याची वेळ","dimAmount":"मंदपणाचे प्रमाण","resetAll":"सर्व सेटिंग्ज रीसेट करा","settingsReset":"सेटिंग्ज रीसेट झाल्या","noCities":"अद्याप शहरे नाहीत","compareEmpty":"वेळांची तुलना करण्यासाठी शहरे जोडा","now":"आता","today":"आज","tomorrow":"उद्या","yesterday":"काल","nDays":"{n} दिवस","sameTime":"समान वेळ","localTime":"स्थानिक वेळ","local":"स्थानिक","reference":"संदर्भ","hoverHint":"तुलनेसाठी टाइमलाइनवर होव्हर करा","showing":"{city} मध्ये {time} दाखवत आहे","clickRelease":"सोडण्यासाठी क्लिक करा","bestTime":"भेटण्याची सर्वोत्तम वेळ:","nMore":"+आणखी {n}","showBtn":"दाखवा","noOverlap":"सर्वजण काम करत असतील अशी वेळ नाही. सर्वात जवळची ({n} पैकी {k}):","noWork":"या दिवशी कामाचे तास नाहीत.","addAnother":"तुलनेसाठी आणखी एक शहर जोडा.","awake":"जागे","night":"रात्र","everyoneWorking":"सर्वजण कामावर","stopwatch":"स्टॉपवॉच","timer":"टायमर","pomodoro":"पोमोडोरो","start":"सुरू करा","pause":"थांबवा","resume":"पुन्हा सुरू","lap":"लॅप","lapN":"लॅप {n}","reset":"रीसेट","skip":"वगळा","plus1":"+1 मिनिट","set":"सेट करा","focus":"फोकस","short":"लहान","long":"मोठा","rounds":"फेऱ्या","shortBreak":"लहान विश्रांती","longBreak":"मोठी विश्रांती","roundOf":"फेरी {r}/{n}","nMin":"{n} मिनिटे","oneHour":"1 तास","timerSet":"टायमर {t} वर सेट केला","timesUp":"वेळ संपली!","dismiss":"डिसमिस","focusDone":"फोकस पूर्ण — विश्रांती घ्या","breakOver":"विश्रांती संपली — फोकसकडे परत या","enterDuration":"आधी कालावधी टाका","searchCity":"शहर, देश किंवा टाइमझोन शोधा…","chooseCity":"एक शहर निवडा","addACityTitle":"एक शहर जोडा","noMatch":"जुळणारे शहर किंवा टाइमझोन नाही.","added":"{x} जोडले","alreadyAdded":"{x} आधीच जोडले आहे","skinToast":"{x} स्किन","sizeToast":"आकार {n}%","fsNA":"येथे फुलस्क्रीन उपलब्ध नाही","navHint":"हलवण्यासाठी","selectHint":"निवडण्यासाठी","closeHint":"बंद करण्यासाठी","shortcuts":"कीबोर्ड शॉर्टकट","kClock":"मोठे घड्याळ","kWorld":"जागतिक घड्याळ ग्रिड","kCompare":"टाइमझोन तुलना","kTimers":"स्टॉपवॉच / टायमर / पोमोडोरो","kFull":"फुलस्क्रीन चालू/बंद","kSkin":"पुढील स्किन (Shift+T मागील)","kSettings":"सेटिंग्ज","kAdd":"एक शहर जोडा","kSize":"घड्याळ लहान / मोठे","kSpace":"सक्रिय टायमर सुरू / थांबवा","kLap":"सक्रिय टायमर लॅप / रीसेट","kDay":"तुलनेत मागील / पुढील दिवस","kNow":"तुलनेत आताच्या वेळेवर परत","kEsc":"पॅनेल बंद करा","helpTip":"टीप: जागतिक दृश्यात, कार्ड ओढून क्रम बदला आणि एखाद्यावर डबल-क्लिक करून ते मोठ्या घड्याळावर दाखवा. तुलनेत, वेळ रूपांतरित करण्यासाठी टाइमलाइनवर होव्हर करा आणि पिन करण्यासाठी क्लिक करा.","changeTz":"टाइमझोन बदला","nextSkin":"पुढील स्किन","fullscreen":"फुलस्क्रीन","moveUp":"वर हलवा","moveDown":"खाली हलवा","remove":"काढा"},
+gu:{"clock":"ઘડિયાળ","world":"વિશ્વ","compare":"સરખામણી","timers":"ટાઇમર","addCityShort":"+ શહેર","settings":"સેટિંગ્સ","language":"ભાષા","close":"બંધ કરો","tSkin":"સ્કિન","tColors":"રંગો","tCities":"શહેરો","tScreen":"સ્ક્રીન","size":"કદ","clockSize":"ઘડિયાળનું કદ","glow":"ચમક","font":"ફોન્ટ","typeface":"ટાઇપફેસ","weight":"જાડાઈ","skinDefault":"સ્કિન ડિફૉલ્ટ","theme":"થીમ","background":"પૃષ્ઠભૂમિ","text":"ટેક્સ્ટ","accent":"એક્સેન્ટ","style":"શૈલી","imageUrl":"છબી URL","darken":"ઘાટું કરો","blur":"ઝાંખું","skyHint":"લાઇવ આકાશ ઘડિયાળના ટાઇમઝોનમાં દિવસના સમયને અનુસરે છે.","timezone":"ટાઇમઝોન","h24":"24-કલાકનો સમય","show":"બતાવો","seconds":"સેકન્ડ","date":"તારીખ","cityName":"શહેરનું નામ","otherCities":"ઘડિયાળ નીચે અન્ય શહેરો","minuteBar":"મિનિટ પ્રગતિ પટ્ટી","moreOptions":"વધુ વિકલ્પો","leadingZero":"શરૂઆતનું શૂન્ય (09:05)","blink":"ઝબકતો કોલન","sweep":"સરળ સેકન્ડ કાંટો (એનાલોગ)","addCity":"+ શહેર ઉમેરો","addACity":"+ એક શહેર ઉમેરો","workHours":"કામના કલાકો","worldAnalog":"વિશ્વ કાર્ડ પર એનાલોગ ડાયલ","worldSec":"વિશ્વ કાર્ડ પર સેકન્ડ","keepAwake":"સ્ક્રીન ચાલુ રાખો","autoHide":"નિષ્ક્રિય હોય ત્યારે નિયંત્રણો છુપાવો","burnIn":"બર્ન-ઇન સુરક્ષા","nightDim":"રાત્રે ઝાંખું કરો","dimFrom":"ઝાંખું કરવાનો સમય","dimAmount":"ઝાંખાપણાનું પ્રમાણ","resetAll":"બધી સેટિંગ્સ રીસેટ કરો","settingsReset":"સેટિંગ્સ રીસેટ થઈ","noCities":"હજી કોઈ શહેર નથી","compareEmpty":"સમયની સરખામણી માટે શહેરો ઉમેરો","now":"હમણાં","today":"આજે","tomorrow":"આવતીકાલે","yesterday":"ગઈકાલે","nDays":"{n} દિવસ","sameTime":"સમાન સમય","localTime":"સ્થાનિક સમય","local":"સ્થાનિક","reference":"સંદર્ભ","hoverHint":"સરખામણી માટે ટાઇમલાઇન પર હોવર કરો","showing":"{city}માં {time} બતાવી રહ્યા છીએ","clickRelease":"છોડવા માટે ક્લિક કરો","bestTime":"મળવાનો શ્રેષ્ઠ સમય:","nMore":"+વધુ {n}","showBtn":"બતાવો","noOverlap":"એવો કોઈ સમય નથી જ્યારે બધા કામ કરતા હોય. નજીકનો ({n}માંથી {k}):","noWork":"આ દિવસે કામના કલાકો નથી.","addAnother":"સરખામણી માટે બીજું શહેર ઉમેરો.","awake":"જાગતા","night":"રાત","everyoneWorking":"બધા કામ પર","stopwatch":"સ્ટોપવૉચ","timer":"ટાઇમર","pomodoro":"પોમોડોરો","start":"શરૂ કરો","pause":"થોભો","resume":"ફરી શરૂ","lap":"લૅપ","lapN":"લૅપ {n}","reset":"રીસેટ","skip":"છોડો","plus1":"+1 મિનિટ","set":"સેટ કરો","focus":"ફોકસ","short":"ટૂંકો","long":"લાંબો","rounds":"રાઉન્ડ","shortBreak":"ટૂંકો વિરામ","longBreak":"લાંબો વિરામ","roundOf":"રાઉન્ડ {r}/{n}","nMin":"{n} મિનિટ","oneHour":"1 કલાક","timerSet":"ટાઇમર {t} પર સેટ થયું","timesUp":"સમય પૂરો!","dismiss":"બંધ કરો","focusDone":"ફોકસ પૂરું — વિરામ લો","breakOver":"વિરામ પૂરો — ફોકસ પર પાછા ફરો","enterDuration":"પહેલા સમયગાળો દાખલ કરો","searchCity":"શહેર, દેશ અથવા ટાઇમઝોન શોધો…","chooseCity":"એક શહેર પસંદ કરો","addACityTitle":"એક શહેર ઉમેરો","noMatch":"કોઈ મેળ ખાતું શહેર કે ટાઇમઝોન નથી.","added":"{x} ઉમેર્યું","alreadyAdded":"{x} પહેલેથી ઉમેરેલું છે","skinToast":"{x} સ્કિન","sizeToast":"કદ {n}%","fsNA":"અહીં ફુલસ્ક્રીન ઉપલબ્ધ નથી","navHint":"ખસેડવા માટે","selectHint":"પસંદ કરવા માટે","closeHint":"બંધ કરવા માટે","shortcuts":"કીબોર્ડ શૉર્ટકટ","kClock":"મોટી ઘડિયાળ","kWorld":"વિશ્વ ઘડિયાળ ગ્રિડ","kCompare":"ટાઇમઝોન સરખામણી","kTimers":"સ્ટોપવૉચ / ટાઇમર / પોમોડોરો","kFull":"ફુલસ્ક્રીન ચાલુ/બંધ","kSkin":"આગલી સ્કિન (Shift+T પાછલી)","kSettings":"સેટિંગ્સ","kAdd":"એક શહેર ઉમેરો","kSize":"ઘડિયાળ નાની / મોટી","kSpace":"સક્રિય ટાઇમર શરૂ / થોભો","kLap":"સક્રિય ટાઇમર લૅપ / રીસેટ","kDay":"સરખામણીમાં પાછલો / આગલો દિવસ","kNow":"સરખામણીમાં હમણાં પર પાછા","kEsc":"પેનલ બંધ કરો","helpTip":"ટિપ: વિશ્વ વ્યૂમાં, કાર્ડ ખેંચીને ક્રમ બદલો અને કોઈ એક પર ડબલ-ક્લિક કરીને તેને મોટી ઘડિયાળ પર બતાવો. સરખામણીમાં, સમય બદલવા માટે ટાઇમલાઇન પર હોવર કરો અને પિન કરવા માટે ક્લિક કરો.","changeTz":"ટાઇમઝોન બદલો","nextSkin":"આગલી સ્કિન","fullscreen":"ફુલસ્ક્રીન","moveUp":"ઉપર ખસેડો","moveDown":"નીચે ખસેડો","remove":"દૂર કરો"},
+pa:{"clock":"ਘੜੀ","world":"ਵਿਸ਼ਵ","compare":"ਤੁਲਨਾ","timers":"ਟਾਈਮਰ","addCityShort":"+ ਸ਼ਹਿਰ","settings":"ਸੈਟਿੰਗਾਂ","language":"ਭਾਸ਼ਾ","close":"ਬੰਦ ਕਰੋ","tSkin":"ਸਕਿਨ","tColors":"ਰੰਗ","tCities":"ਸ਼ਹਿਰ","tScreen":"ਸਕ੍ਰੀਨ","size":"ਆਕਾਰ","clockSize":"ਘੜੀ ਦਾ ਆਕਾਰ","glow":"ਚਮਕ","font":"ਫੌਂਟ","typeface":"ਟਾਈਪਫੇਸ","weight":"ਮੋਟਾਈ","skinDefault":"ਸਕਿਨ ਡਿਫੌਲਟ","theme":"ਥੀਮ","background":"ਪਿਛੋਕੜ","text":"ਟੈਕਸਟ","accent":"ਐਕਸੈਂਟ","style":"ਸ਼ੈਲੀ","imageUrl":"ਚਿੱਤਰ URL","darken":"ਗੂੜ੍ਹਾ ਕਰੋ","blur":"ਧੁੰਦਲਾ","skyHint":"ਲਾਈਵ ਅਸਮਾਨ ਘੜੀ ਦੇ ਟਾਈਮਜ਼ੋਨ ਵਿੱਚ ਦਿਨ ਦੇ ਸਮੇਂ ਦੇ ਨਾਲ ਬਦਲਦਾ ਹੈ।","timezone":"ਟਾਈਮਜ਼ੋਨ","h24":"24-ਘੰਟੇ ਸਮਾਂ","show":"ਦਿਖਾਓ","seconds":"ਸਕਿੰਟ","date":"ਤਾਰੀਖ","cityName":"ਸ਼ਹਿਰ ਦਾ ਨਾਮ","otherCities":"ਘੜੀ ਹੇਠਾਂ ਹੋਰ ਸ਼ਹਿਰ","minuteBar":"ਮਿੰਟ ਪ੍ਰਗਤੀ ਪੱਟੀ","moreOptions":"ਹੋਰ ਵਿਕਲਪ","leadingZero":"ਸ਼ੁਰੂਆਤੀ ਜ਼ੀਰੋ (09:05)","blink":"ਝਪਕਦਾ ਕੋਲਨ","sweep":"ਨਿਰਵਿਘਨ ਸਕਿੰਟ ਸੂਈ (ਐਨਾਲਾਗ)","addCity":"+ ਸ਼ਹਿਰ ਜੋੜੋ","addACity":"+ ਇੱਕ ਸ਼ਹਿਰ ਜੋੜੋ","workHours":"ਕੰਮ ਦੇ ਘੰਟੇ","worldAnalog":"ਵਿਸ਼ਵ ਕਾਰਡਾਂ 'ਤੇ ਐਨਾਲਾਗ ਡਾਇਲ","worldSec":"ਵਿਸ਼ਵ ਕਾਰਡਾਂ 'ਤੇ ਸਕਿੰਟ","keepAwake":"ਸਕ੍ਰੀਨ ਚਾਲੂ ਰੱਖੋ","autoHide":"ਨਿਸ਼ਕਿਰਿਆ ਹੋਣ 'ਤੇ ਕੰਟਰੋਲ ਲੁਕਾਓ","burnIn":"ਬਰਨ-ਇਨ ਸੁਰੱਖਿਆ","nightDim":"ਰਾਤ ਨੂੰ ਮੱਧਮ ਕਰੋ","dimFrom":"ਮੱਧਮ ਕਰਨ ਦਾ ਸਮਾਂ","dimAmount":"ਮੱਧਮਤਾ ਦੀ ਮਾਤਰਾ","resetAll":"ਸਾਰੀਆਂ ਸੈਟਿੰਗਾਂ ਰੀਸੈਟ ਕਰੋ","settingsReset":"ਸੈਟਿੰਗਾਂ ਰੀਸੈਟ ਹੋ ਗਈਆਂ","noCities":"ਅਜੇ ਕੋਈ ਸ਼ਹਿਰ ਨਹੀਂ","compareEmpty":"ਸਮੇਂ ਦੀ ਤੁਲਨਾ ਲਈ ਸ਼ਹਿਰ ਜੋੜੋ","now":"ਹੁਣ","today":"ਅੱਜ","tomorrow":"ਭਲਕੇ","yesterday":"ਬੀਤਿਆ ਕੱਲ੍ਹ","nDays":"{n} ਦਿਨ","sameTime":"ਇੱਕੋ ਸਮਾਂ","localTime":"ਸਥਾਨਕ ਸਮਾਂ","local":"ਸਥਾਨਕ","reference":"ਹਵਾਲਾ","hoverHint":"ਤੁਲਨਾ ਲਈ ਟਾਈਮਲਾਈਨ 'ਤੇ ਹੋਵਰ ਕਰੋ","showing":"{city} ਵਿੱਚ {time} ਦਿਖਾ ਰਹੇ ਹਾਂ","clickRelease":"ਛੱਡਣ ਲਈ ਕਲਿੱਕ ਕਰੋ","bestTime":"ਮਿਲਣ ਦਾ ਸਭ ਤੋਂ ਵਧੀਆ ਸਮਾਂ:","nMore":"+{n} ਹੋਰ","showBtn":"ਦਿਖਾਓ","noOverlap":"ਅਜਿਹਾ ਕੋਈ ਸਮਾਂ ਨਹੀਂ ਜਦੋਂ ਸਾਰੇ ਕੰਮ 'ਤੇ ਹੋਣ। ਸਭ ਤੋਂ ਨੇੜੇ ({n} ਵਿੱਚੋਂ {k}):","noWork":"ਇਸ ਦਿਨ ਕੋਈ ਕੰਮ ਦੇ ਘੰਟੇ ਨਹੀਂ।","addAnother":"ਤੁਲਨਾ ਲਈ ਇੱਕ ਹੋਰ ਸ਼ਹਿਰ ਜੋੜੋ।","awake":"ਜਾਗਦੇ","night":"ਰਾਤ","everyoneWorking":"ਸਾਰੇ ਕੰਮ 'ਤੇ","stopwatch":"ਸਟੌਪਵਾਚ","timer":"ਟਾਈਮਰ","pomodoro":"ਪੋਮੋਡੋਰੋ","start":"ਸ਼ੁਰੂ ਕਰੋ","pause":"ਰੋਕੋ","resume":"ਜਾਰੀ ਰੱਖੋ","lap":"ਲੈਪ","lapN":"ਲੈਪ {n}","reset":"ਰੀਸੈਟ","skip":"ਛੱਡੋ","plus1":"+1 ਮਿੰਟ","set":"ਸੈੱਟ ਕਰੋ","focus":"ਫੋਕਸ","short":"ਛੋਟਾ","long":"ਲੰਮਾ","rounds":"ਰਾਊਂਡ","shortBreak":"ਛੋਟੀ ਬ੍ਰੇਕ","longBreak":"ਲੰਮੀ ਬ੍ਰੇਕ","roundOf":"ਰਾਊਂਡ {r}/{n}","nMin":"{n} ਮਿੰਟ","oneHour":"1 ਘੰਟਾ","timerSet":"ਟਾਈਮਰ {t} 'ਤੇ ਸੈੱਟ","timesUp":"ਸਮਾਂ ਖਤਮ!","dismiss":"ਖਾਰਜ ਕਰੋ","focusDone":"ਫੋਕਸ ਪੂਰਾ — ਬ੍ਰੇਕ ਲਓ","breakOver":"ਬ੍ਰੇਕ ਖਤਮ — ਫੋਕਸ 'ਤੇ ਵਾਪਸ ਆਓ","enterDuration":"ਪਹਿਲਾਂ ਮਿਆਦ ਦਰਜ ਕਰੋ","searchCity":"ਸ਼ਹਿਰ, ਦੇਸ਼ ਜਾਂ ਟਾਈਮਜ਼ੋਨ ਖੋਜੋ…","chooseCity":"ਇੱਕ ਸ਼ਹਿਰ ਚੁਣੋ","addACityTitle":"ਇੱਕ ਸ਼ਹਿਰ ਜੋੜੋ","noMatch":"ਕੋਈ ਮੇਲ ਖਾਂਦਾ ਸ਼ਹਿਰ ਜਾਂ ਟਾਈਮਜ਼ੋਨ ਨਹੀਂ।","added":"{x} ਜੋੜਿਆ ਗਿਆ","alreadyAdded":"{x} ਪਹਿਲਾਂ ਹੀ ਜੋੜਿਆ ਹੋਇਆ ਹੈ","skinToast":"{x} ਸਕਿਨ","sizeToast":"ਆਕਾਰ {n}%","fsNA":"ਇੱਥੇ ਫੁੱਲਸਕ੍ਰੀਨ ਉਪਲਬਧ ਨਹੀਂ","navHint":"ਹਿਲਾਉਣ ਲਈ","selectHint":"ਚੁਣਨ ਲਈ","closeHint":"ਬੰਦ ਕਰਨ ਲਈ","shortcuts":"ਕੀਬੋਰਡ ਸ਼ਾਰਟਕੱਟ","kClock":"ਵੱਡੀ ਘੜੀ","kWorld":"ਵਿਸ਼ਵ ਘੜੀ ਗ੍ਰਿਡ","kCompare":"ਟਾਈਮਜ਼ੋਨ ਤੁਲਨਾ","kTimers":"ਸਟੌਪਵਾਚ / ਟਾਈਮਰ / ਪੋਮੋਡੋਰੋ","kFull":"ਫੁੱਲਸਕ੍ਰੀਨ ਚਾਲੂ/ਬੰਦ","kSkin":"ਅਗਲੀ ਸਕਿਨ (Shift+T ਪਿਛਲੀ)","kSettings":"ਸੈਟਿੰਗਾਂ","kAdd":"ਇੱਕ ਸ਼ਹਿਰ ਜੋੜੋ","kSize":"ਘੜੀ ਛੋਟੀ / ਵੱਡੀ","kSpace":"ਸਰਗਰਮ ਟਾਈਮਰ ਸ਼ੁਰੂ / ਰੋਕੋ","kLap":"ਸਰਗਰਮ ਟਾਈਮਰ ਲੈਪ / ਰੀਸੈਟ","kDay":"ਤੁਲਨਾ ਵਿੱਚ ਪਿਛਲਾ / ਅਗਲਾ ਦਿਨ","kNow":"ਤੁਲਨਾ ਵਿੱਚ ਹੁਣ 'ਤੇ ਵਾਪਸ","kEsc":"ਪੈਨਲ ਬੰਦ ਕਰੋ","helpTip":"ਸੁਝਾਅ: ਵਿਸ਼ਵ ਦ੍ਰਿਸ਼ ਵਿੱਚ, ਕਾਰਡਾਂ ਨੂੰ ਖਿੱਚ ਕੇ ਕ੍ਰਮ ਬਦਲੋ ਅਤੇ ਕਿਸੇ ਇੱਕ 'ਤੇ ਡਬਲ-ਕਲਿੱਕ ਕਰਕੇ ਉਸਨੂੰ ਵੱਡੀ ਘੜੀ 'ਤੇ ਦਿਖਾਓ। ਤੁਲਨਾ ਵਿੱਚ, ਸਮਾਂ ਬਦਲਣ ਲਈ ਟਾਈਮਲਾਈਨ 'ਤੇ ਹੋਵਰ ਕਰੋ ਅਤੇ ਪਿੰਨ ਕਰਨ ਲਈ ਕਲਿੱਕ ਕਰੋ।","changeTz":"ਟਾਈਮਜ਼ੋਨ ਬਦਲੋ","nextSkin":"ਅਗਲੀ ਸਕਿਨ","fullscreen":"ਫੁੱਲਸਕ੍ਰੀਨ","moveUp":"ਉੱਪਰ ਲਿਜਾਓ","moveDown":"ਹੇਠਾਂ ਲਿਜਾਓ","remove":"ਹਟਾਓ"},
+de:{"clock":"Uhr","world":"Welt","compare":"Vergleich","timers":"Timer","addCityShort":"+ Stadt","settings":"Einstellungen","language":"Sprache","close":"Schließen","tSkin":"Design","tColors":"Farben","tCities":"Städte","tScreen":"Anzeige","size":"Größe","clockSize":"Uhrgröße","glow":"Leuchten","font":"Schrift","typeface":"Schriftart","weight":"Stärke","skinDefault":"Design-Standard","theme":"Thema","background":"Hintergrund","text":"Text","accent":"Akzent","style":"Stil","imageUrl":"Bild-URL","darken":"Abdunkeln","blur":"Unschärfe","skyHint":"Der Live-Himmel folgt der Tageszeit in der Zeitzone der Uhr.","timezone":"Zeitzone","h24":"24-Stunden-Format","show":"Anzeigen","seconds":"Sekunden","date":"Datum","cityName":"Stadtname","otherCities":"Weitere Städte unter der Uhr","minuteBar":"Minuten-Fortschrittsbalken","moreOptions":"Weitere Optionen","leadingZero":"Führende Null (09:05)","blink":"Blinkender Doppelpunkt","sweep":"Gleitender Sekundenzeiger (analog)","addCity":"+ Stadt hinzufügen","addACity":"+ Stadt hinzufügen","workHours":"Arbeitszeiten","worldAnalog":"Analoge Zifferblätter auf Weltkarten","worldSec":"Sekunden auf Weltkarten","keepAwake":"Bildschirm aktiv halten","autoHide":"Steuerung bei Inaktivität ausblenden","burnIn":"Einbrennschutz","nightDim":"Nachts abdunkeln","dimFrom":"Abdunkeln ab","dimAmount":"Abdunkelung","resetAll":"Alle Einstellungen zurücksetzen","settingsReset":"Einstellungen zurückgesetzt","noCities":"Noch keine Städte","compareEmpty":"Füge Städte hinzu, um ihre Zeiten zu vergleichen","now":"Jetzt","today":"Heute","tomorrow":"Morgen","yesterday":"Gestern","nDays":"{n} Tage","sameTime":"Gleiche Zeit","localTime":"Ortszeit","local":"Lokal","reference":"Referenz","hoverHint":"Zum Vergleichen über die Zeitleiste fahren","showing":"{time} in {city}","clickRelease":"zum Lösen klicken","bestTime":"Beste Zeit für ein Treffen:","nMore":"+{n} weitere","showBtn":"Zeigen","noOverlap":"Keine Zeit, in der alle arbeiten. Am nächsten ({k} von {n}):","noWork":"Keine Arbeitszeiten an diesem Tag.","addAnother":"Füge eine weitere Stadt zum Vergleichen hinzu.","awake":"Wach","night":"Nacht","everyoneWorking":"Alle arbeiten","stopwatch":"Stoppuhr","timer":"Timer","pomodoro":"Pomodoro","start":"Start","pause":"Pause","resume":"Weiter","lap":"Runde","lapN":"Runde {n}","reset":"Zurücksetzen","skip":"Überspringen","plus1":"+1 Min.","set":"Stellen","focus":"Fokus","short":"Kurz","long":"Lang","rounds":"Runden","shortBreak":"Kurze Pause","longBreak":"Lange Pause","roundOf":"Runde {r} von {n}","nMin":"{n} Min.","oneHour":"1 Stunde","timerSet":"Timer auf {t} gestellt","timesUp":"Zeit abgelaufen!","dismiss":"Schließen","focusDone":"Fokus beendet – Zeit für eine Pause","breakOver":"Pause vorbei – zurück zum Fokus","enterDuration":"Bitte zuerst eine Dauer eingeben","searchCity":"Stadt, Land oder Zeitzone suchen…","chooseCity":"Stadt auswählen","addACityTitle":"Stadt hinzufügen","noMatch":"Keine passende Stadt oder Zeitzone.","added":"{x} hinzugefügt","alreadyAdded":"{x} ist bereits hinzugefügt","skinToast":"Design: {x}","sizeToast":"Größe {n}%","fsNA":"Vollbild hier nicht verfügbar","navHint":"zum Bewegen","selectHint":"zum Auswählen","closeHint":"zum Schließen","shortcuts":"Tastenkürzel","kClock":"Große Uhr","kWorld":"Weltuhr-Raster","kCompare":"Zeitzonenvergleich","kTimers":"Stoppuhr / Timer / Pomodoro","kFull":"Vollbild umschalten","kSkin":"Nächstes Design (Shift+T vorheriges)","kSettings":"Einstellungen","kAdd":"Stadt hinzufügen","kSize":"Uhr kleiner / größer","kSpace":"Aktiven Timer starten / pausieren","kLap":"Aktiven Timer: Runde / zurücksetzen","kDay":"Vorheriger / nächster Tag im Vergleich","kNow":"Zurück zu jetzt im Vergleich","kEsc":"Bereiche schließen","helpTip":"Tipp: In der Weltansicht Karten zum Umsortieren ziehen und doppelklicken, um eine auf der großen Uhr anzuzeigen. Im Vergleich über die Zeitleiste fahren, um Zeiten umzurechnen, und klicken zum Fixieren.","changeTz":"Zeitzone ändern","nextSkin":"Nächstes Design","fullscreen":"Vollbild","moveUp":"Nach oben","moveDown":"Nach unten","remove":"Entfernen"},
+fr:{"clock":"Horloge","world":"Monde","compare":"Comparer","timers":"Minuteurs","addCityShort":"+ Ville","settings":"Réglages","language":"Langue","close":"Fermer","tSkin":"Thème","tColors":"Couleurs","tCities":"Villes","tScreen":"Écran","size":"Taille","clockSize":"Taille de l'horloge","glow":"Halo","font":"Police","typeface":"Police","weight":"Graisse","skinDefault":"Par défaut du thème","theme":"Thème","background":"Arrière-plan","text":"Texte","accent":"Accent","style":"Style","imageUrl":"URL de l'image","darken":"Assombrir","blur":"Flou","skyHint":"Le ciel en direct suit l'heure du jour dans le fuseau de l'horloge.","timezone":"Fuseau horaire","h24":"Format 24 h","show":"Afficher","seconds":"Secondes","date":"Date","cityName":"Nom de la ville","otherCities":"Autres villes sous l'horloge","minuteBar":"Barre de progression des minutes","moreOptions":"Plus d'options","leadingZero":"Zéro initial (09:05)","blink":"Deux-points clignotants","sweep":"Trotteuse fluide (analogique)","addCity":"+ Ajouter une ville","addACity":"+ Ajouter une ville","workHours":"Heures de travail","worldAnalog":"Cadrans analogiques sur les cartes","worldSec":"Secondes sur les cartes","keepAwake":"Garder l'écran allumé","autoHide":"Masquer les commandes en cas d'inactivité","burnIn":"Protection anti-marquage","nightDim":"Atténuer la nuit","dimFrom":"Atténuer de","dimAmount":"Intensité","resetAll":"Réinitialiser tous les réglages","settingsReset":"Réglages réinitialisés","noCities":"Aucune ville pour l'instant","compareEmpty":"Ajoutez des villes pour comparer leurs heures","now":"Maintenant","today":"Aujourd'hui","tomorrow":"Demain","yesterday":"Hier","nDays":"{n} jours","sameTime":"Même heure","localTime":"Heure locale","local":"Local","reference":"Référence","hoverHint":"Survolez la frise pour comparer","showing":"{time} à {city}","clickRelease":"cliquer pour libérer","bestTime":"Meilleur moment pour se réunir :","nMore":"+{n} de plus","showBtn":"Afficher","noOverlap":"Aucun créneau où tout le monde travaille. Le plus proche ({k} sur {n}) :","noWork":"Aucune heure de travail ce jour-là.","addAnother":"Ajoutez une autre ville pour comparer.","awake":"Éveillé","night":"Nuit","everyoneWorking":"Tous au travail","stopwatch":"Chrono","timer":"Minuteur","pomodoro":"Pomodoro","start":"Démarrer","pause":"Pause","resume":"Reprendre","lap":"Tour","lapN":"Tour {n}","reset":"Réinitialiser","skip":"Passer","plus1":"+1 min","set":"Régler","focus":"Focus","short":"Courte","long":"Longue","rounds":"Cycles","shortBreak":"Pause courte","longBreak":"Pause longue","roundOf":"Cycle {r} sur {n}","nMin":"{n} min","oneHour":"1 heure","timerSet":"Minuteur réglé sur {t}","timesUp":"Temps écoulé !","dismiss":"Ignorer","focusDone":"Focus terminé — faites une pause","breakOver":"Pause terminée — retour au focus","enterDuration":"Saisissez d'abord une durée","searchCity":"Rechercher une ville, un pays ou un fuseau…","chooseCity":"Choisir une ville","addACityTitle":"Ajouter une ville","noMatch":"Aucune ville ni fuseau correspondant.","added":"{x} ajoutée","alreadyAdded":"{x} est déjà ajoutée","skinToast":"Thème {x}","sizeToast":"Taille {n} %","fsNA":"Plein écran indisponible ici","navHint":"pour se déplacer","selectHint":"pour sélectionner","closeHint":"pour fermer","shortcuts":"Raccourcis clavier","kClock":"Grande horloge","kWorld":"Grille des horloges du monde","kCompare":"Comparaison des fuseaux","kTimers":"Chrono / minuteur / Pomodoro","kFull":"Basculer en plein écran","kSkin":"Thème suivant (Shift+T précédent)","kSettings":"Réglages","kAdd":"Ajouter une ville","kSize":"Réduire / agrandir l'horloge","kSpace":"Démarrer / mettre en pause le minuteur actif","kLap":"Tour / réinitialiser le minuteur actif","kDay":"Jour précédent / suivant dans la comparaison","kNow":"Revenir à maintenant dans la comparaison","kEsc":"Fermer les panneaux","helpTip":"Astuce : dans la vue Monde, faites glisser les cartes pour les réorganiser et double-cliquez sur l'une d'elles pour l'afficher sur la grande horloge. Dans Comparer, survolez la frise pour convertir les heures et cliquez pour épingler.","changeTz":"Changer de fuseau","nextSkin":"Thème suivant","fullscreen":"Plein écran","moveUp":"Monter","moveDown":"Descendre","remove":"Supprimer"},
+es:{"clock":"Reloj","world":"Mundo","compare":"Comparar","timers":"Temporizadores","addCityShort":"+ Ciudad","settings":"Ajustes","language":"Idioma","close":"Cerrar","tSkin":"Tema","tColors":"Colores","tCities":"Ciudades","tScreen":"Pantalla","size":"Tamaño","clockSize":"Tamaño del reloj","glow":"Brillo","font":"Fuente","typeface":"Tipografía","weight":"Grosor","skinDefault":"Predeterminado del tema","theme":"Tema","background":"Fondo","text":"Texto","accent":"Acento","style":"Estilo","imageUrl":"URL de la imagen","darken":"Oscurecer","blur":"Desenfoque","skyHint":"El cielo en vivo sigue la hora del día en la zona horaria del reloj.","timezone":"Zona horaria","h24":"Formato 24 horas","show":"Mostrar","seconds":"Segundos","date":"Fecha","cityName":"Nombre de la ciudad","otherCities":"Otras ciudades bajo el reloj","minuteBar":"Barra de progreso de minutos","moreOptions":"Más opciones","leadingZero":"Cero inicial (09:05)","blink":"Dos puntos parpadeantes","sweep":"Segundero suave (analógico)","addCity":"+ Añadir ciudad","addACity":"+ Añadir una ciudad","workHours":"Horario laboral","worldAnalog":"Esferas analógicas en las tarjetas","worldSec":"Segundos en las tarjetas","keepAwake":"Mantener pantalla encendida","autoHide":"Ocultar controles en reposo","burnIn":"Protección contra quemado","nightDim":"Atenuar de noche","dimFrom":"Atenuar desde","dimAmount":"Nivel de atenuación","resetAll":"Restablecer todos los ajustes","settingsReset":"Ajustes restablecidos","noCities":"Aún no hay ciudades","compareEmpty":"Añade ciudades para comparar sus horas","now":"Ahora","today":"Hoy","tomorrow":"Mañana","yesterday":"Ayer","nDays":"{n} días","sameTime":"Misma hora","localTime":"Hora local","local":"Local","reference":"Referencia","hoverHint":"Pasa el cursor por la línea de tiempo para comparar","showing":"Mostrando {time} en {city}","clickRelease":"clic para soltar","bestTime":"Mejor hora para reunirse:","nMore":"+{n} más","showBtn":"Mostrar","noOverlap":"No hay ninguna hora en que todos trabajen. La más cercana ({k} de {n}):","noWork":"No hay horario laboral este día.","addAnother":"Añade otra ciudad para comparar.","awake":"Despierto","night":"Noche","everyoneWorking":"Todos trabajando","stopwatch":"Cronómetro","timer":"Temporizador","pomodoro":"Pomodoro","start":"Iniciar","pause":"Pausar","resume":"Reanudar","lap":"Vuelta","lapN":"Vuelta {n}","reset":"Reiniciar","skip":"Saltar","plus1":"+1 min","set":"Fijar","focus":"Enfoque","short":"Corto","long":"Largo","rounds":"Rondas","shortBreak":"Descanso corto","longBreak":"Descanso largo","roundOf":"Ronda {r} de {n}","nMin":"{n} min","oneHour":"1 hora","timerSet":"Temporizador fijado en {t}","timesUp":"¡Se acabó el tiempo!","dismiss":"Descartar","focusDone":"Enfoque terminado — toma un descanso","breakOver":"Fin del descanso — vuelve a enfocarte","enterDuration":"Primero introduce una duración","searchCity":"Buscar ciudad, país o zona horaria…","chooseCity":"Elige una ciudad","addACityTitle":"Añadir una ciudad","noMatch":"No hay ciudades ni zonas horarias que coincidan.","added":"{x} añadida","alreadyAdded":"{x} ya está añadida","skinToast":"Tema {x}","sizeToast":"Tamaño {n}%","fsNA":"Pantalla completa no disponible aquí","navHint":"para moverte","selectHint":"para seleccionar","closeHint":"para cerrar","shortcuts":"Atajos de teclado","kClock":"Reloj grande","kWorld":"Cuadrícula de relojes del mundo","kCompare":"Comparación de zonas horarias","kTimers":"Cronómetro / temporizador / Pomodoro","kFull":"Alternar pantalla completa","kSkin":"Tema siguiente (Shift+T anterior)","kSettings":"Ajustes","kAdd":"Añadir una ciudad","kSize":"Reloj más pequeño / más grande","kSpace":"Iniciar / pausar el temporizador activo","kLap":"Vuelta / reiniciar el temporizador activo","kDay":"Día anterior / siguiente en la comparación","kNow":"Volver a ahora en la comparación","kEsc":"Cerrar paneles","helpTip":"Consejo: en la vista Mundo, arrastra las tarjetas para reordenarlas y haz doble clic en una para mostrarla en el reloj grande. En Comparar, pasa el cursor por la línea de tiempo para convertir horas y haz clic para fijar.","changeTz":"Cambiar zona horaria","nextSkin":"Tema siguiente","fullscreen":"Pantalla completa","moveUp":"Subir","moveDown":"Bajar","remove":"Eliminar"},
+pt:{"clock":"Relógio","world":"Mundo","compare":"Comparar","timers":"Timers","addCityShort":"+ Cidade","settings":"Configurações","language":"Idioma","close":"Fechar","tSkin":"Tema","tColors":"Cores","tCities":"Cidades","tScreen":"Tela","size":"Tamanho","clockSize":"Tamanho do relógio","glow":"Brilho","font":"Fonte","typeface":"Tipo de letra","weight":"Peso","skinDefault":"Padrão do tema","theme":"Tema","background":"Fundo","text":"Texto","accent":"Destaque","style":"Estilo","imageUrl":"URL da imagem","darken":"Escurecer","blur":"Desfoque","skyHint":"O céu ao vivo acompanha a hora do dia no fuso horário do relógio.","timezone":"Fuso horário","h24":"Formato 24 horas","show":"Mostrar","seconds":"Segundos","date":"Data","cityName":"Nome da cidade","otherCities":"Outras cidades abaixo do relógio","minuteBar":"Barra de progresso dos minutos","moreOptions":"Mais opções","leadingZero":"Zero à esquerda (09:05)","blink":"Dois-pontos piscando","sweep":"Ponteiro de segundos suave (analógico)","addCity":"+ Adicionar cidade","addACity":"+ Adicionar uma cidade","workHours":"Horário de trabalho","worldAnalog":"Mostradores analógicos nos cartões","worldSec":"Segundos nos cartões","keepAwake":"Manter a tela ligada","autoHide":"Ocultar controles quando inativo","burnIn":"Proteção contra burn-in","nightDim":"Escurecer à noite","dimFrom":"Escurecer de","dimAmount":"Intensidade","resetAll":"Redefinir todas as configurações","settingsReset":"Configurações redefinidas","noCities":"Nenhuma cidade ainda","compareEmpty":"Adicione cidades para comparar seus horários","now":"Agora","today":"Hoje","tomorrow":"Amanhã","yesterday":"Ontem","nDays":"{n} dias","sameTime":"Mesmo horário","localTime":"Hora local","local":"Local","reference":"Referência","hoverHint":"Passe o mouse na linha do tempo para comparar","showing":"Mostrando {time} em {city}","clickRelease":"clique para soltar","bestTime":"Melhor horário para reunião:","nMore":"+{n} mais","showBtn":"Mostrar","noOverlap":"Nenhum horário em que todos estejam trabalhando. Mais próximo ({k} de {n}):","noWork":"Sem horário de trabalho neste dia.","addAnother":"Adicione outra cidade para comparar.","awake":"Acordado","night":"Noite","everyoneWorking":"Todos trabalhando","stopwatch":"Cronômetro","timer":"Timer","pomodoro":"Pomodoro","start":"Iniciar","pause":"Pausar","resume":"Retomar","lap":"Volta","lapN":"Volta {n}","reset":"Zerar","skip":"Pular","plus1":"+1 min","set":"Definir","focus":"Foco","short":"Curta","long":"Longa","rounds":"Rodadas","shortBreak":"Pausa curta","longBreak":"Pausa longa","roundOf":"Rodada {r} de {n}","nMin":"{n} min","oneHour":"1 hora","timerSet":"Timer definido para {t}","timesUp":"Tempo esgotado!","dismiss":"Dispensar","focusDone":"Foco concluído — faça uma pausa","breakOver":"Fim da pausa — de volta ao foco","enterDuration":"Insira uma duração primeiro","searchCity":"Buscar cidade, país ou fuso horário…","chooseCity":"Escolha uma cidade","addACityTitle":"Adicionar uma cidade","noMatch":"Nenhuma cidade ou fuso horário correspondente.","added":"{x} adicionada","alreadyAdded":"{x} já foi adicionada","skinToast":"Tema {x}","sizeToast":"Tamanho {n}%","fsNA":"Tela cheia indisponível aqui","navHint":"para mover","selectHint":"para selecionar","closeHint":"para fechar","shortcuts":"Atalhos de teclado","kClock":"Relógio grande","kWorld":"Grade de relógios mundiais","kCompare":"Comparação de fusos horários","kTimers":"Cronômetro / timer / Pomodoro","kFull":"Alternar tela cheia","kSkin":"Próximo tema (Shift+T anterior)","kSettings":"Configurações","kAdd":"Adicionar uma cidade","kSize":"Relógio menor / maior","kSpace":"Iniciar / pausar o timer ativo","kLap":"Volta / zerar o timer ativo","kDay":"Dia anterior / seguinte na comparação","kNow":"Voltar para agora na comparação","kEsc":"Fechar painéis","helpTip":"Dica: na visão Mundo, arraste os cartões para reordenar e clique duas vezes em um para exibi-lo no relógio grande. Em Comparar, passe o mouse na linha do tempo para converter horários e clique para fixar.","changeTz":"Alterar fuso horário","nextSkin":"Próximo tema","fullscreen":"Tela cheia","moveUp":"Mover para cima","moveDown":"Mover para baixo","remove":"Remover"},
+ja:{"clock":"時計","world":"世界","compare":"比較","timers":"タイマー","addCityShort":"+ 都市","settings":"設定","language":"言語","close":"閉じる","tSkin":"スキン","tColors":"色","tCities":"都市","tScreen":"画面","size":"サイズ","clockSize":"時計のサイズ","glow":"グロー","font":"フォント","typeface":"書体","weight":"太さ","skinDefault":"スキンの既定","theme":"テーマ","background":"背景","text":"文字","accent":"アクセント","style":"スタイル","imageUrl":"画像URL","darken":"暗さ","blur":"ぼかし","skyHint":"ライブスカイは時計のタイムゾーンの時刻に合わせて変化します。","timezone":"タイムゾーン","h24":"24時間表示","show":"表示","seconds":"秒","date":"日付","cityName":"都市名","otherCities":"時計の下に他の都市を表示","minuteBar":"分の進行バー","moreOptions":"その他のオプション","leadingZero":"先頭にゼロ (09:05)","blink":"コロンを点滅","sweep":"なめらかな秒針（アナログ）","addCity":"+ 都市を追加","addACity":"+ 都市を追加","workHours":"勤務時間","worldAnalog":"世界カードにアナログ文字盤","worldSec":"世界カードに秒を表示","keepAwake":"画面をオンのままにする","autoHide":"操作がないときはコントロールを隠す","burnIn":"焼き付き防止","nightDim":"夜間は暗くする","dimFrom":"減光開始","dimAmount":"減光の強さ","resetAll":"すべての設定をリセット","settingsReset":"設定をリセットしました","noCities":"都市がまだありません","compareEmpty":"都市を追加して時刻を比較しましょう","now":"現在","today":"今日","tomorrow":"明日","yesterday":"昨日","nDays":"{n}日","sameTime":"同じ時刻","localTime":"現地時刻","local":"ローカル","reference":"基準","hoverHint":"タイムラインにカーソルを合わせて比較","showing":"{city}の{time}を表示中","clickRelease":"クリックで解除","bestTime":"会議に最適な時間：","nMore":"他{n}件","showBtn":"表示","noOverlap":"全員が勤務中の時間はありません。最も近い時間（{n}中{k}）：","noWork":"この日は勤務時間がありません。","addAnother":"比較するには都市をもう1つ追加してください。","awake":"起床中","night":"夜間","everyoneWorking":"全員勤務中","stopwatch":"ストップウォッチ","timer":"タイマー","pomodoro":"ポモドーロ","start":"開始","pause":"一時停止","resume":"再開","lap":"ラップ","lapN":"ラップ {n}","reset":"リセット","skip":"スキップ","plus1":"+1分","set":"設定","focus":"集中","short":"短","long":"長","rounds":"ラウンド","shortBreak":"短い休憩","longBreak":"長い休憩","roundOf":"ラウンド {r}/{n}","nMin":"{n}分","oneHour":"1時間","timerSet":"タイマーを{t}に設定しました","timesUp":"時間です！","dismiss":"閉じる","focusDone":"集中終了 — 休憩しましょう","breakOver":"休憩終了 — 集中に戻りましょう","enterDuration":"先に時間を入力してください","searchCity":"都市、国、タイムゾーンを検索…","chooseCity":"都市を選択","addACityTitle":"都市を追加","noMatch":"一致する都市またはタイムゾーンがありません。","added":"{x}を追加しました","alreadyAdded":"{x}は追加済みです","skinToast":"スキン: {x}","sizeToast":"サイズ {n}%","fsNA":"ここでは全画面表示を利用できません","navHint":"で移動","selectHint":"で選択","closeHint":"で閉じる","shortcuts":"キーボードショートカット","kClock":"大きな時計","kWorld":"世界時計グリッド","kCompare":"タイムゾーン比較","kTimers":"ストップウォッチ / タイマー / ポモドーロ","kFull":"全画面表示の切り替え","kSkin":"次のスキン（Shift+T で前へ）","kSettings":"設定","kAdd":"都市を追加","kSize":"時計を小さく / 大きく","kSpace":"実行中のタイマーを開始 / 一時停止","kLap":"実行中のタイマーのラップ / リセット","kDay":"比較で前日 / 翌日","kNow":"比較で現在に戻る","kEsc":"パネルを閉じる","helpTip":"ヒント：世界ビューではカードをドラッグして並べ替え、ダブルクリックで大きな時計に表示できます。比較ではタイムラインにカーソルを合わせて時刻を換算し、クリックで固定できます。","changeTz":"タイムゾーンを変更","nextSkin":"次のスキン","fullscreen":"全画面表示","moveUp":"上へ移動","moveDown":"下へ移動","remove":"削除"},
+zh:{"clock":"时钟","world":"世界","compare":"对比","timers":"计时","addCityShort":"+ 城市","settings":"设置","language":"语言","close":"关闭","tSkin":"皮肤","tColors":"颜色","tCities":"城市","tScreen":"屏幕","size":"大小","clockSize":"时钟大小","glow":"光晕","font":"字体","typeface":"字型","weight":"字重","skinDefault":"皮肤默认","theme":"主题","background":"背景","text":"文字","accent":"强调色","style":"样式","imageUrl":"图片网址","darken":"变暗","blur":"模糊","skyHint":"实时天空会随时钟所在时区的时间变化。","timezone":"时区","h24":"24 小时制","show":"显示","seconds":"秒","date":"日期","cityName":"城市名称","otherCities":"在时钟下方显示其他城市","minuteBar":"分钟进度条","moreOptions":"更多选项","leadingZero":"补零 (09:05)","blink":"冒号闪烁","sweep":"平滑秒针（模拟）","addCity":"+ 添加城市","addACity":"+ 添加城市","workHours":"工作时间","worldAnalog":"世界卡片显示表盘","worldSec":"世界卡片显示秒","keepAwake":"保持屏幕常亮","autoHide":"空闲时隐藏控件","burnIn":"防烧屏","nightDim":"夜间调暗","dimFrom":"调暗时段","dimAmount":"调暗程度","resetAll":"重置所有设置","settingsReset":"设置已重置","noCities":"暂无城市","compareEmpty":"添加城市以对比时间","now":"现在","today":"今天","tomorrow":"明天","yesterday":"昨天","nDays":"{n} 天","sameTime":"时间相同","localTime":"本地时间","local":"本地","reference":"参考","hoverHint":"将鼠标悬停在时间轴上进行对比","showing":"显示{city}的 {time}","clickRelease":"点击释放","bestTime":"最佳会议时间：","nMore":"还有 {n} 个","showBtn":"显示","noOverlap":"没有所有人都在工作的时间。最接近的（{k}/{n}）：","noWork":"这一天没有工作时间。","addAnother":"再添加一个城市进行对比。","awake":"清醒","night":"夜间","everyoneWorking":"全员工作中","stopwatch":"秒表","timer":"计时器","pomodoro":"番茄钟","start":"开始","pause":"暂停","resume":"继续","lap":"计次","lapN":"计次 {n}","reset":"重置","skip":"跳过","plus1":"+1 分钟","set":"设定","focus":"专注","short":"短","long":"长","rounds":"轮数","shortBreak":"短休息","longBreak":"长休息","roundOf":"第 {r}/{n} 轮","nMin":"{n} 分钟","oneHour":"1 小时","timerSet":"计时器已设为 {t}","timesUp":"时间到！","dismiss":"关闭","focusDone":"专注结束 — 休息一下","breakOver":"休息结束 — 回到专注","enterDuration":"请先输入时长","searchCity":"搜索城市、国家或时区…","chooseCity":"选择城市","addACityTitle":"添加城市","noMatch":"没有匹配的城市或时区。","added":"已添加{x}","alreadyAdded":"{x}已添加","skinToast":"{x}皮肤","sizeToast":"大小 {n}%","fsNA":"此处无法使用全屏","navHint":"移动","selectHint":"选择","closeHint":"关闭","shortcuts":"键盘快捷键","kClock":"大时钟","kWorld":"世界时钟网格","kCompare":"时区对比","kTimers":"秒表 / 计时器 / 番茄钟","kFull":"切换全屏","kSkin":"下一个皮肤（Shift+T 上一个）","kSettings":"设置","kAdd":"添加城市","kSize":"缩小 / 放大时钟","kSpace":"开始 / 暂停当前计时器","kLap":"计次 / 重置当前计时器","kDay":"对比中的前一天 / 后一天","kNow":"对比中回到现在","kEsc":"关闭面板","helpTip":"提示：在世界视图中，拖动卡片可重新排序，双击卡片可在大时钟上显示。在对比视图中，悬停在时间轴上可换算时间，点击可固定。","changeTz":"更改时区","nextSkin":"下一个皮肤","fullscreen":"全屏","moveUp":"上移","moveDown":"下移","remove":"移除"}
+};
+</script>
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYS_L = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MON_L = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/* ================= language ================= */
+const I18N = window.CL_I18N || {en: {}};
+const LANGS = [['en', 'English'], ['hi', 'हिन्दी'], ['bn', 'বাংলা'], ['ta', 'தமிழ்'], ['te', 'తెలుగు'], ['kn', 'ಕನ್ನಡ'], ['ml', 'മലയാളം'], ['mr', 'मराठी'], ['gu', 'ગુજરાતી'], ['pa', 'ਪੰਜਾਬੀ'], ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['pt', 'Português'], ['ja', '日本語'], ['zh', '中文']].filter(([k]) => I18N[k]);
+let LANG = 'en';
+const T = (k, v) => {
+  let s = (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
+  if (v) for (const x in v) s = s.split('{' + x + '}').join(v[x]);
+  return s;
+};
+const DFMT = {};
+function resolveLang(pref) {
+  if (pref && pref !== 'auto' && I18N[pref]) return pref;
+  for (const l of navigator.languages || [navigator.language || 'en']) { const b = String(l).slice(0, 2).toLowerCase(); if (I18N[b]) return b; }
+  return 'en';
+}
+// Swap every translatable label and the day/month names; digits stay Latin so the clock faces look the same.
+function applyLang(pref) {
+  LANG = resolveLang(pref);
+  document.documentElement.lang = LANG;
+  document.documentElement.classList.toggle('nonlatin', !['en', 'de', 'fr', 'es', 'pt'].includes(LANG));
+  let loc = LANG + '-u-nu-latn';
+  try { new Intl.DateTimeFormat(loc); } catch (e) { loc = 'en'; }
+  const f = o => new Intl.DateTimeFormat(loc, {...o, timeZone: 'UTC'});
+  const wS = f({weekday: 'short'}), wL = f({weekday: 'long'}), mS = f({month: 'short'}), mL = f({month: 'long'});
+  for (let i = 0; i < 7; i++) { const d = new Date(Date.UTC(2023, 0, 1 + i)); DAYS[i] = wS.format(d); DAYS_L[i] = wL.format(d); }
+  for (let i = 0; i < 12; i++) { const d = new Date(Date.UTC(2023, i, 15)); MON[i] = mS.format(d); MON_L[i] = mL.format(d); }
+  DFMT.long = f({weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
+  DFMT.short = f({weekday: 'short', month: 'short', day: 'numeric'});
+  $$('[data-i18n]').forEach(el => el.textContent = T(el.dataset.i18n));
+  $$('[data-i18n-title]').forEach(el => { el.title = T(el.dataset.i18nTitle); el.setAttribute('aria-label', el.title); });
+  $$('[data-i18n-ph]').forEach(el => el.placeholder = T(el.dataset.i18nPh));
+}
+const fmtDate = (p, long) => (long ? DFMT.long : DFMT.short).format(new Date(Date.UTC(p.y, p.mo - 1, p.d)));
+
+/* ================= timezones ================= */
+const validTz = tz => { try { new Intl.DateTimeFormat('en-US', {timeZone: tz}); return true; } catch (e) { return false; } };
+const ALIAS = {'Asia/Calcutta':'Asia/Kolkata','Asia/Saigon':'Asia/Ho_Chi_Minh','Europe/Kiev':'Europe/Kyiv','Asia/Katmandu':'Asia/Kathmandu','Asia/Rangoon':'Asia/Yangon','America/Godthab':'America/Nuuk','America/Buenos_Aires':'America/Argentina/Buenos_Aires','Etc/UTC':'UTC','Etc/GMT':'UTC'};
+const canon = tz => (ALIAS[tz] && validTz(ALIAS[tz])) ? ALIAS[tz] : tz;
+const LOCAL_TZ = (() => { try { return canon(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'); } catch (e) { return 'UTC'; } })();
+
+const CITY_DATA = `
+Kolkata|India|Asia/Kolkata
+Bengaluru|India|Asia/Kolkata
+Mumbai|India|Asia/Kolkata
+New Delhi|India|Asia/Kolkata
+Chennai|India|Asia/Kolkata
+Hyderabad|India|Asia/Kolkata
+Karachi|Pakistan|Asia/Karachi
+Dhaka|Bangladesh|Asia/Dhaka
+Kathmandu|Nepal|Asia/Kathmandu
+Colombo|Sri Lanka|Asia/Colombo
+Kabul|Afghanistan|Asia/Kabul
+Tehran|Iran|Asia/Tehran
+Dubai|United Arab Emirates|Asia/Dubai
+Abu Dhabi|United Arab Emirates|Asia/Dubai
+Muscat|Oman|Asia/Muscat
+Doha|Qatar|Asia/Qatar
+Riyadh|Saudi Arabia|Asia/Riyadh
+Kuwait City|Kuwait|Asia/Kuwait
+Baghdad|Iraq|Asia/Baghdad
+Jerusalem|Israel|Asia/Jerusalem
+Tel Aviv|Israel|Asia/Jerusalem
+Beirut|Lebanon|Asia/Beirut
+Amman|Jordan|Asia/Amman
+Istanbul|Türkiye|Europe/Istanbul
+Tashkent|Uzbekistan|Asia/Tashkent
+Almaty|Kazakhstan|Asia/Almaty
+Yangon|Myanmar|Asia/Yangon,Asia/Rangoon
+Bangkok|Thailand|Asia/Bangkok
+Ho Chi Minh City|Vietnam|Asia/Ho_Chi_Minh,Asia/Saigon
+Hanoi|Vietnam|Asia/Ho_Chi_Minh,Asia/Saigon
+Jakarta|Indonesia|Asia/Jakarta
+Bali|Indonesia|Asia/Makassar
+Kuala Lumpur|Malaysia|Asia/Kuala_Lumpur
+Singapore|Singapore|Asia/Singapore
+Manila|Philippines|Asia/Manila
+Hong Kong|China|Asia/Hong_Kong
+Beijing|China|Asia/Shanghai
+Shanghai|China|Asia/Shanghai
+Shenzhen|China|Asia/Shanghai
+Taipei|Taiwan|Asia/Taipei
+Seoul|South Korea|Asia/Seoul
+Tokyo|Japan|Asia/Tokyo
+Osaka|Japan|Asia/Tokyo
+Ulaanbaatar|Mongolia|Asia/Ulaanbaatar
+Vladivostok|Russia|Asia/Vladivostok
+Novosibirsk|Russia|Asia/Novosibirsk
+Yekaterinburg|Russia|Asia/Yekaterinburg
+Moscow|Russia|Europe/Moscow
+Saint Petersburg|Russia|Europe/Moscow
+Perth|Australia|Australia/Perth
+Darwin|Australia|Australia/Darwin
+Adelaide|Australia|Australia/Adelaide
+Brisbane|Australia|Australia/Brisbane
+Sydney|Australia|Australia/Sydney
+Melbourne|Australia|Australia/Melbourne
+Canberra|Australia|Australia/Sydney
+Hobart|Australia|Australia/Hobart
+Auckland|New Zealand|Pacific/Auckland
+Wellington|New Zealand|Pacific/Auckland
+Chatham Islands|New Zealand|Pacific/Chatham
+Suva|Fiji|Pacific/Fiji
+Guam|United States|Pacific/Guam
+Port Moresby|Papua New Guinea|Pacific/Port_Moresby
+Apia|Samoa|Pacific/Apia
+Kiritimati|Kiribati|Pacific/Kiritimati
+Honolulu|United States|Pacific/Honolulu
+Tahiti|French Polynesia|Pacific/Tahiti
+London|United Kingdom|Europe/London
+Edinburgh|United Kingdom|Europe/London
+Dublin|Ireland|Europe/Dublin
+Lisbon|Portugal|Europe/Lisbon
+Reykjavik|Iceland|Atlantic/Reykjavik
+Madrid|Spain|Europe/Madrid
+Barcelona|Spain|Europe/Madrid
+Paris|France|Europe/Paris
+Brussels|Belgium|Europe/Brussels
+Amsterdam|Netherlands|Europe/Amsterdam
+Luxembourg|Luxembourg|Europe/Luxembourg
+Berlin|Germany|Europe/Berlin
+Frankfurt|Germany|Europe/Berlin
+Munich|Germany|Europe/Berlin
+Zurich|Switzerland|Europe/Zurich
+Geneva|Switzerland|Europe/Zurich
+Rome|Italy|Europe/Rome
+Milan|Italy|Europe/Rome
+Vienna|Austria|Europe/Vienna
+Prague|Czechia|Europe/Prague
+Warsaw|Poland|Europe/Warsaw
+Copenhagen|Denmark|Europe/Copenhagen
+Oslo|Norway|Europe/Oslo
+Stockholm|Sweden|Europe/Stockholm
+Helsinki|Finland|Europe/Helsinki
+Tallinn|Estonia|Europe/Tallinn
+Riga|Latvia|Europe/Riga
+Vilnius|Lithuania|Europe/Vilnius
+Athens|Greece|Europe/Athens
+Bucharest|Romania|Europe/Bucharest
+Sofia|Bulgaria|Europe/Sofia
+Budapest|Hungary|Europe/Budapest
+Belgrade|Serbia|Europe/Belgrade
+Kyiv|Ukraine|Europe/Kyiv,Europe/Kiev
+Minsk|Belarus|Europe/Minsk
+Cairo|Egypt|Africa/Cairo
+Casablanca|Morocco|Africa/Casablanca
+Algiers|Algeria|Africa/Algiers
+Tunis|Tunisia|Africa/Tunis
+Lagos|Nigeria|Africa/Lagos
+Accra|Ghana|Africa/Accra
+Dakar|Senegal|Africa/Dakar
+Nairobi|Kenya|Africa/Nairobi
+Addis Ababa|Ethiopia|Africa/Addis_Ababa
+Kampala|Uganda|Africa/Kampala
+Dar es Salaam|Tanzania|Africa/Dar_es_Salaam
+Khartoum|Sudan|Africa/Khartoum
+Kinshasa|DR Congo|Africa/Kinshasa
+Luanda|Angola|Africa/Luanda
+Harare|Zimbabwe|Africa/Harare
+Johannesburg|South Africa|Africa/Johannesburg
+Cape Town|South Africa|Africa/Johannesburg
+Port Louis|Mauritius|Indian/Mauritius
+Malé|Maldives|Indian/Maldives
+New York|United States|America/New_York
+Washington DC|United States|America/New_York
+Boston|United States|America/New_York
+Miami|United States|America/New_York
+Atlanta|United States|America/New_York
+Toronto|Canada|America/Toronto
+Montreal|Canada|America/Toronto
+Chicago|United States|America/Chicago
+Dallas|United States|America/Chicago
+Houston|United States|America/Chicago
+Mexico City|Mexico|America/Mexico_City
+Denver|United States|America/Denver
+Phoenix|United States|America/Phoenix
+Los Angeles|United States|America/Los_Angeles
+San Francisco|United States|America/Los_Angeles
+Seattle|United States|America/Los_Angeles
+Las Vegas|United States|America/Los_Angeles
+Vancouver|Canada|America/Vancouver
+Calgary|Canada|America/Edmonton
+Anchorage|United States|America/Anchorage
+Halifax|Canada|America/Halifax
+St. John's|Canada|America/St_Johns
+Havana|Cuba|America/Havana
+Kingston|Jamaica|America/Jamaica
+San Juan|Puerto Rico|America/Puerto_Rico
+Guatemala City|Guatemala|America/Guatemala
+Panama City|Panama|America/Panama
+Bogotá|Colombia|America/Bogota
+Lima|Peru|America/Lima
+Quito|Ecuador|America/Guayaquil
+Caracas|Venezuela|America/Caracas
+La Paz|Bolivia|America/La_Paz
+Santiago|Chile|America/Santiago
+Asunción|Paraguay|America/Asuncion
+Montevideo|Uruguay|America/Montevideo
+Buenos Aires|Argentina|America/Argentina/Buenos_Aires,America/Buenos_Aires
+São Paulo|Brazil|America/Sao_Paulo
+Rio de Janeiro|Brazil|America/Sao_Paulo
+Nuuk|Greenland|America/Nuuk,America/Godthab
+Azores|Portugal|Atlantic/Azores
+Praia|Cape Verde|Atlantic/Cape_Verde
+UTC|Coordinated Universal Time|UTC`;
+const CITIES = CITY_DATA.trim().split('\n').map(l => {
+  const [name, country, zones] = l.split('|');
+  const tz = zones.split(',').find(validTz);
+  return tz ? {name, country, tz} : null;
+}).filter(Boolean);
+const ALL_ZONES = (() => { try { return Intl.supportedValuesOf('timeZone').map(canon); } catch (e) { return []; } })();
+const tzCity = tz => tz === 'UTC' ? 'UTC' : tz.split('/').pop().replace(/_/g, ' ');
+const countryOf = tz => (CITIES.find(c => c.tz === tz) || {}).country || tz;
+
+/* Offset (minutes east of UTC) for a zone at an instant, cached per zone per minute. */
+const _pf = new Map(), _off = new Map();
+function slowParts(ms, tz) {
+  let f = _pf.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'});
+    _pf.set(tz, f);
+  }
+  const o = {};
+  for (const p of f.formatToParts(ms)) o[p.type] = p.value;
+  return {y: +o.year, mo: +o.month, d: +o.day, h: (+o.hour) % 24, mi: +o.minute, s: +o.second};
+}
+function tzOffset(tz, ms) {
+  const m = Math.floor(ms / 60000), c = _off.get(tz);
+  if (c && c.m === m) return c.off;
+  const p = slowParts(ms, tz);
+  const off = Math.round((Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(ms / 1000) * 1000) / 60000);
+  _off.set(tz, {m, off});
+  return off;
+}
+/* Wall-clock parts in a zone. */
+function zp(ms, tz) {
+  const d = new Date(ms + tzOffset(tz, ms) * 60000);
+  return {y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds(), ms: d.getUTCMilliseconds(), wd: d.getUTCDay()};
+}
+/* Epoch ms for a wall-clock time in a zone. */
+function zonedToEpoch(tz, y, mo, d, h = 0, mi = 0) {
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const off = tzOffset(tz, guess);
+  let t = guess - off * 60000;
+  const off2 = tzOffset(tz, t);
+  if (off2 !== off) t = guess - off2 * 60000;
+  return t;
+}
+const utcLabel = off => { const s = off < 0 ? '−' : '+', a = Math.abs(off); return `UTC${s}${Math.floor(a / 60)}${a % 60 ? ':' + pad(a % 60) : ''}`; };
+const diffLabel = m => { if (!m) return T('sameTime'); const s = m < 0 ? '−' : '+', a = Math.abs(m); return `${s}${Math.floor(a / 60)}h${a % 60 ? ' ' + (a % 60) + 'm' : ''}`; };
+const dayDiff = (p, b) => Math.round((Date.UTC(p.y, p.mo - 1, p.d) - Date.UTC(b.y, b.mo - 1, b.d)) / 864e5);
+const dayRel = (p, b) => { const d = dayDiff(p, b); return d === 0 ? T('today') : d === 1 ? T('tomorrow') : d === -1 ? T('yesterday') : T('nDays', {n: (d > 0 ? '+' : '') + d}); };
+const phaseOf = p => { const h = p.h + p.mi / 60; return h < 5 || h >= 21 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk'; };
+function fmtHM(p) {
+  let h = p.h, ap = '';
+  if (!S.h24) { ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; }
+  return {h: (S.h24 || S.leadingZero) ? pad(h) : String(h), m: pad(p.mi), s: pad(p.s), ap};
+}
+const fmtShort = p => { const f = fmtHM(p); return `${f.h}:${f.m}${f.ap ? ' ' + f.ap : ''}`; };
+
+/* ================= config tables ================= */
+const SKINS = {
+  minimal:  {name: 'Minimal',  type: 'digital', font: 'inter',    weight: 200},
+  neon:     {name: 'Neon',     type: 'digital', font: 'orbitron', weight: 500, glow: 65},
+  flip:     {name: 'Flip',     type: 'flip',    font: 'bebas',    weight: 400},
+  led:      {name: 'LED',      type: 'led',     font: 'inter',    weight: 400},
+  terminal: {name: 'Terminal', type: 'digital', font: 'vt',       weight: 400, glow: 30},
+  bold:     {name: 'Bold',     type: 'digital', font: 'space',    weight: 700},
+  mono:     {name: 'Mono',     type: 'digital', font: 'jet',      weight: 200},
+  word:     {name: 'Word',     type: 'word',    font: 'space',    weight: 600},
+  classic:  {name: 'Classic',  type: 'analog',  font: 'inter',    weight: 500},
+  modern:   {name: 'Modern',   type: 'analog',  font: 'inter',    weight: 400},
+  swiss:    {name: 'Swiss',    type: 'analog',  font: 'inter',    weight: 400},
+  luxury:   {name: 'Luxury',   type: 'analog',  font: 'playfair', weight: 500},
+};
+const SKIN_KEYS = Object.keys(SKINS);
+const FONTS = {
+  inter: ['Inter', "'Inter'"], orbitron: ['Orbitron', "'Orbitron'"], bebas: ['Bebas Neue', "'Bebas Neue'"],
+  space: ['Space Grotesk', "'Space Grotesk'"], jet: ['JetBrains Mono', "'JetBrains Mono'"], share: ['Share Tech Mono', "'Share Tech Mono'"],
+  vt: ['VT323 (retro)', "'VT323'"], rajdhani: ['Rajdhani', "'Rajdhani'"], playfair: ['Playfair Display', "'Playfair Display'"], system: ['System UI', 'system-ui'],
+};
+const THEMES = {
+  midnight: ['Midnight', '#07090f', '#e8ecf4', '#5ee7ff'],
+  ocean:    ['Ocean',    '#04172b', '#dff4ff', '#3fb6ff'],
+  matrix:   ['Matrix',   '#020a03', '#b6ffb6', '#00ff66'],
+  amber:    ['Amber',    '#120c02', '#ffd88a', '#ffb000'],
+  sunset:   ['Sunset',   '#1a0b1e', '#ffe9d6', '#ff7a59'],
+  rose:     ['Rose',     '#1b0f14', '#ffe4ec', '#ff5c8a'],
+  violet:   ['Violet',   '#100b1f', '#ece6ff', '#a78bfa'],
+  mono:     ['Mono',     '#000000', '#ffffff', '#ffffff'],
+  paper:    ['Paper',    '#f4f1ea', '#1d1d1f', '#d9480f'],
+  snow:     ['Snow',     '#ffffff', '#111827', '#2563eb'],
+};
+const BGS = {
+  solid: ['Solid color', 'var(--bg)'],
+  glow: ['Accent glow', 'radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--accent) 16%, var(--bg)) 0%, var(--bg) 70%)'],
+  vignette: ['Vignette', 'radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55)), var(--bg)'],
+  aurora: ['Aurora', 'radial-gradient(at 18% 22%, #1f6f5c66, transparent 50%), radial-gradient(at 82% 28%, #3b2a8a77, transparent 50%), radial-gradient(at 50% 95%, #0b5e8a55, transparent 60%), #05070d'],
+  sunset: ['Sunset', 'linear-gradient(180deg, #1b1035, #4a1942 55%, #b8484a)'],
+  ocean: ['Deep ocean', 'linear-gradient(160deg, #021b2e, #05445e 60%, #0a6c7a)'],
+  forest: ['Forest', 'linear-gradient(160deg, #06120d, #0f2e1f 60%, #1d4430)'],
+  charcoal: ['Charcoal', 'linear-gradient(180deg, #1b1b1e, #0a0a0b)'],
+  animated: ['Animated gradient', ''],
+  sky: ['Live sky', ''],
+  image: ['Image URL', ''],
+};
+const SKY = [[0,'#03050d','#0a1028'],[4.5,'#070b1f','#1a1d45'],[6,'#27306a','#e07a5f'],[7.5,'#3f6fc4','#f6bd8a'],[10,'#2a6fc9','#8cc4ef'],[15.5,'#2766be','#9ccbec'],[17.8,'#344f9b','#f19a5a'],[19.2,'#241c48','#b5486a'],[20.6,'#0b1033','#272552'],[24,'#03050d','#0a1028']];
+
+/* ================= settings ================= */
+const KEY = 'clocklive.v1';
+const DEFAULTS = {
+  mode: 'clock', skin: 'minimal', theme: 'midnight', bg: '#07090f', fg: '#e8ecf4', accent: '#5ee7ff',
+  font: 'skin', weight: 'auto', size: 90, glow: 0,
+  h24: false, showSec: true, showDate: true, showLabel: true, blink: false, leadingZero: false, sweep: true, secBar: true, showStrip: true,
+  clockTz: null, clockName: '',
+  bgType: 'glow', bgImage: '', bgDim: 40, bgBlur: 0,
+  cities: null, worldAnalog: false, worldSec: true, compareHome: null, workStart: 9, workEnd: 18,
+  keepAwake: true, autoHide: true, burnIn: true, nightDim: false, dimStart: 23, dimEnd: 6, dimLevel: 50,
+  xtab: 'sw', setTab: 'skin', lang: 'auto',
+  sw: {run: false, start: 0, acc: 0, laps: []},
+  cd: {dur: 300000, run: false, end: 0, left: 300000},
+  pomo: {work: 25, short: 5, long: 15, rounds: 4, phase: 'work', round: 1, run: false, end: 0, left: 1500000},
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+const mkCity = (name, country, tz) => ({id: uid(), name, country, tz});
+function defaultCities() {
+  const want = [[LOCAL_TZ, tzCity(LOCAL_TZ)], ['Europe/London', 'London'], ['America/New_York', 'New York'], ['Asia/Tokyo', 'Tokyo'], ['Asia/Dubai', 'Dubai'], ['Australia/Sydney', 'Sydney'], ['America/Los_Angeles', 'Los Angeles'], ['Asia/Singapore', 'Singapore']];
+  const seen = new Set(), out = [];
+  for (const [tz, name] of want) { if (seen.has(tz) || !validTz(tz)) continue; seen.add(tz); out.push(mkCity(name, countryOf(tz), tz)); }
+  return out;
+}
+function load() {
+  const s = JSON.parse(JSON.stringify(DEFAULTS));
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    for (const k in saved) {
+      if (!(k in s)) continue;
+      if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) && saved[k] && typeof saved[k] === 'object') Object.assign(s[k], saved[k]);
+      else s[k] = saved[k];
+    }
+  } catch (e) {}
+  if (!Array.isArray(s.cities)) s.cities = defaultCities();
+  s.cities = s.cities.filter(c => c && validTz(c.tz));
+  if (!SKINS[s.skin]) s.skin = 'minimal';
+  if (s.clockTz && !validTz(s.clockTz)) s.clockTz = null;
+  return s;
+}
+let S = load();
+let saveT;
+function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }, 250); }
+
+/* ================= look & feel ================= */
+const root = document.documentElement;
+const skinFont = () => FONTS[S.font === 'skin' ? SKINS[S.skin].font : S.font] || FONTS.inter;
+function applyLook() {
+  const sk = SKINS[S.skin], st = root.style;
+  st.setProperty('--bg', S.bg); st.setProperty('--fg', S.fg); st.setProperty('--accent', S.accent);
+  st.setProperty('--font', `${skinFont()[1]}, 'Inter', system-ui, sans-serif`);
+  st.setProperty('--weight', S.weight === 'auto' ? sk.weight : S.weight);
+  const g = Math.max(S.glow, sk.glow || 0) / 100;
+  st.setProperty('--shadow', g ? `0 0 ${(.03 * g).toFixed(3)}em var(--accent), 0 0 ${(.12 * g).toFixed(3)}em color-mix(in srgb, var(--accent) 70%, transparent), 0 0 ${(.35 * g).toFixed(3)}em color-mix(in srgb, var(--accent) 35%, transparent)` : 'none');
+  document.body.dataset.skin = S.skin;
+  $('meta[name=theme-color]').content = S.bg;
+  measureDigits();
+  applyBg();
+}
+function measureDigits() {
+  try {
+    const c = document.createElement('canvas').getContext('2d');
+    const w = S.weight === 'auto' ? SKINS[S.skin].weight : S.weight;
+    c.font = `${w} 100px ${skinFont()[1]}, Inter, sans-serif`;
+    let m = 0;
+    for (let i = 0; i < 10; i++) m = Math.max(m, c.measureText(String(i)).width);
+    root.style.setProperty('--dw', (m / 100 + .02).toFixed(3) + 'em');
+  } catch (e) {}
+}
+const hex2rgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+const mixHex = (a, b, t) => { const A = hex2rgb(a), B = hex2rgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
+function skyGradient() {
+  const p = zp(Date.now(), clockTz()), h = p.h + p.mi / 60;
+  let i = 0;
+  while (h >= SKY[i + 1][0]) i++;
+  const a = SKY[i], b = SKY[i + 1], t = (h - a[0]) / (b[0] - a[0]);
+  return `linear-gradient(180deg, ${mixHex(a[1], b[1], t)}, ${mixHex(a[2], b[2], t)})`;
+}
+function applyBg() {
+  const bg = $('#bg'), img = $('#bgImg'), dim = $('#bgDim');
+  bg.className = ''; bg.style.background = ''; img.style.display = 'none'; dim.style.opacity = 0;
+  if (S.bgType === 'animated') bg.className = 'animated';
+  else if (S.bgType === 'sky') bg.style.background = skyGradient();
+  else if (S.bgType === 'image') {
+    if (S.bgImage) {
+      img.style.display = 'block';
+      img.style.backgroundImage = `url("${S.bgImage.replace(/["\\]/g, '')}")`;
+      img.style.filter = S.bgBlur ? `blur(${S.bgBlur}px)` : '';
+      dim.style.opacity = S.bgDim / 100;
+    }
+  } else bg.style.background = (BGS[S.bgType] || BGS.glow)[1];
+  $$('[data-show]').forEach(el => { const k = el.dataset.show; el.style.display = (k === 'nightDim' ? S.nightDim : S.bgType === k) ? '' : 'none'; });
+}
+
+/* ================= helpers for digits ================= */
+function setDigits(el, str) {
+  if (el._v === str) return;
+  el._v = str;
+  el.innerHTML = [...str].map(c => /\d/.test(c) ? `<i class="dg">${c}</i>` : `<i class="sp">${c === ' ' ? '&nbsp;' : c}</i>`).join('');
+}
+function fitText(el, maxW, maxH, k = 1) {
+  el.style.fontSize = '100px';
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return 100;
+  const s = Math.max(8, Math.min(maxW / r.width, maxH / r.height) * 100 * k);
+  el.style.fontSize = s + 'px';
+  return s;
+}
+
+/* ================= analog ================= */
+const ROMAN = ['XII','I','II','III','IIII','V','VI','VII','VIII','IX','X','XI'];
+function analogSVG(style) {
+  const P = (a, r) => [(Math.sin(a * Math.PI / 180) * r).toFixed(2), (-Math.cos(a * Math.PI / 180) * r).toFixed(2)];
+  let s = `<svg class="an an-${style}" viewBox="-100 -100 200 200" aria-hidden="true">`;
+  if (style === 'luxury') s += `<defs><radialGradient id="luxF" cx="50%" cy="38%" r="70%"><stop offset="0" stop-color="#1e2536"/><stop offset="1" stop-color="#06080e"/></radialGradient><linearGradient id="luxG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e3a1"/><stop offset=".5" stop-color="#c9a54a"/><stop offset="1" stop-color="#8a6a1f"/></linearGradient></defs>`;
+  s += `<circle class="face" r="96"/>`;
+  if (style === 'luxury') s += `<circle class="ring" r="90.5"/>`;
+  for (let i = 0; i < 60; i++) {
+    const a = i * 6, maj = i % 5 === 0;
+    if (style === 'modern') {
+      if (maj) { const [x, y] = P(a, 84); s += `<circle class="tk-dot${i === 0 ? ' big' : ''}" cx="${x}" cy="${y}" r="${i === 0 ? 3.6 : 2.2}"/>`; }
+      continue;
+    }
+    let r1, r2, w;
+    if (style === 'swiss') { r1 = maj ? 64 : 83; r2 = 91; w = maj ? 6.5 : 2.2; }
+    else if (style === 'luxury') { r1 = maj ? 80 : 85.5; r2 = 89; w = maj ? 2.6 : .7; }
+    else { r1 = maj ? 79 : 86; r2 = 91; w = maj ? 2.8 : 1; }
+    const [x1, y1] = P(a, r1), [x2, y2] = P(a, r2);
+    s += `<line class="tk${maj ? '' : ' mn'}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}"/>`;
+  }
+  if (style === 'classic' || style === 'luxury') {
+    for (let h = 0; h < 12; h++) {
+      if (style === 'luxury' && h === 3) continue;
+      const [x, y] = P(h * 30, style === 'luxury' ? 69 : 67);
+      s += `<text class="num" x="${x}" y="${y}">${style === 'luxury' ? ROMAN[h] : (h || 12)}</text>`;
+    }
+  }
+  if (style === 'luxury') s += `<text class="brand" y="-38">CLOCKLIVE</text><rect class="datewin" x="52" y="-9" width="22" height="18" rx="2"/><text class="datetx" x="63" y="0.5"></text>`;
+  const H = {
+    classic: `<g class="hand h-h"><line y1="12" y2="-46" stroke-width="6.5"/></g><g class="hand h-m"><line y1="14" y2="-72" stroke-width="4"/></g><g class="hand sec h-s"><line y1="22" y2="-84" stroke-width="1.6"/><circle r="3.6"/></g><circle class="pin" r="1.8"/>`,
+    modern: `<g class="hand h-h"><line y1="0" y2="-46" stroke-width="5"/></g><g class="hand h-m"><line y1="0" y2="-76" stroke-width="3"/></g><g class="hand sec h-s"><line y1="18" y2="-86" stroke-width="1.2"/></g><circle class="pin" r="3.6"/>`,
+    swiss: `<g class="hand h-h"><polygon points="-5.2,17 5.2,17 4,-54 -4,-54"/></g><g class="hand h-m"><polygon points="-4.2,21 4.2,21 3,-86 -3,-86"/></g><g class="hand sec h-s"><line y1="28" y2="-60" stroke-width="2.4"/><circle cy="-60" r="8.5"/><circle r="3"/></g>`,
+    luxury: `<g class="hand h-h"><polygon points="0,-52 5.4,-12 0,10 -5.4,-12"/></g><g class="hand h-m"><polygon points="0,-80 4.4,-14 0,12 -4.4,-14"/></g><g class="hand sec h-s"><line y1="22" y2="-86" stroke-width="1"/><circle cy="15" r="2.8"/></g><circle class="pin" r="3.6"/>`,
+  };
+  return s + H[style] + '</svg>';
+}
+function setAnalog(svg, p, style, showSec = true) {
+  if (!svg._h) svg._h = {h: svg.querySelector('.h-h'), m: svg.querySelector('.h-m'), s: svg.querySelector('.h-s'), d: svg.querySelector('.datetx')};
+  const H = svg._h;
+  let sa, ma, ha;
+  if (style === 'swiss') {
+    const t = p.s + p.ms / 1000;
+    sa = t < 58.5 ? t / 58.5 * 360 : 0;
+    ma = p.mi * 6; ha = (p.h % 12) * 30 + p.mi * .5;
+  } else {
+    const sec = p.s + (S.sweep ? p.ms / 1000 : 0);
+    sa = sec * 6; ma = (p.mi + sec / 60) * 6; ha = ((p.h % 12) + p.mi / 60 + sec / 3600) * 30;
+  }
+  H.h.setAttribute('transform', `rotate(${ha.toFixed(2)})`);
+  H.m.setAttribute('transform', `rotate(${ma.toFixed(2)})`);
+  H.s.setAttribute('transform', `rotate(${sa.toFixed(2)})`);
+  H.s.style.display = showSec ? '' : 'none';
+  if (H.d && H.d._v !== p.d) { H.d._v = p.d; H.d.textContent = p.d; }
+}
+
+/* ================= big clock ================= */
+const clockTz = () => S.clockTz || LOCAL_TZ;
+const clockName = () => S.clockTz ? (S.clockName || tzCity(S.clockTz)) : tzCity(LOCAL_TZ);
+const SEGS = {0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg'};
+const WC_ROWS = ['ITLISASAMPM','ACQUARTERDC','TWENTYFIVEX','HALFSTENFTO','PASTERUNINE','ONESIXTHREE','FOURFIVETWO','EIGHTELEVEN','SEVENTWELVE','TENSEOCLOCK'];
+const WC = {IT:[0,0,2],IS:[0,3,2],A:[1,0,1],QUARTER:[1,2,7],TWENTY:[2,0,6],MFIVE:[2,6,4],HALF:[3,0,4],MTEN:[3,5,3],TO:[3,9,2],PAST:[4,0,4],NINE:[4,7,4],ONE:[5,0,3],SIX:[5,3,3],THREE:[5,6,5],FOUR:[6,0,4],FIVE:[6,4,4],TWO:[6,8,3],EIGHT:[7,0,5],ELEVEN:[7,5,6],SEVEN:[8,0,5],TWELVE:[8,5,6],TEN:[9,0,3],OCLOCK:[9,5,6]};
+const HOURW = ['TWELVE','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE','TEN','ELEVEN'];
+const MINW = [['OCLOCK'],['MFIVE','PAST'],['MTEN','PAST'],['A','QUARTER','PAST'],['TWENTY','PAST'],['TWENTY','MFIVE','PAST'],['HALF','PAST'],['TWENTY','MFIVE','TO'],['TWENTY','TO'],['A','QUARTER','TO'],['MTEN','TO'],['MFIVE','TO']];
+const flipCard = () => `<div class="fcard"><div class="half top"><span></span></div><div class="half bottom"><span></span></div><div class="flap front"><span></span></div><div class="flap back"><span></span></div></div>`;
+const ledDigit = () => `<div class="seg-d">${[...'abcdefg'].map(s => `<i class="seg ${s}"></i>`).join('')}</div>`;
+
+let face = {};
+function buildClock() {
+  const sk = SKINS[S.skin], el = $('#clockFace');
+  face = {type: sk.type, el, len: -1, min: -1};
+  el.style.fontSize = '';
+  if (sk.type === 'digital') {
+    el.innerHTML = `<div class="digital"><span class="hh"></span><span class="colon">:</span><span class="mm"></span>${(S.showSec || !S.h24) ? `<span class="side"><span class="ampm">${S.h24 ? '' : 'AM'}</span>${S.showSec ? '<span class="ss"></span>' : ''}</span>` : ''}${S.skin === 'terminal' ? '<span class="cursor-blk"></span>' : ''}</div>`;
+    Object.assign(face, {hh: $('.hh', el), mm: $('.mm', el), ss: $('.ss', el), ap: $('.ampm', el), colon: $('.colon', el)});
+  } else if (sk.type === 'flip') {
+    el.innerHTML = `<div class="flipclock"><div class="fgroup">${flipCard() + flipCard()}</div><div class="fgroup">${flipCard() + flipCard()}</div>${S.showSec ? `<div class="fgroup g-s">${flipCard() + flipCard()}</div>` : ''}${S.h24 ? '' : '<div class="flip-ap"></div>'}</div>`;
+    Object.assign(face, {cards: $$('.fcard', el), ap: $('.flip-ap', el)});
+  } else if (sk.type === 'led') {
+    el.innerHTML = `<div class="led"><div class="lg">${ledDigit() + ledDigit()}</div><div class="led-colon"><i></i><i></i></div><div class="lg">${ledDigit() + ledDigit()}</div>${S.showSec ? `<div class="led-sec"><div class="led-colon"><i></i><i></i></div><div class="lg">${ledDigit() + ledDigit()}</div></div>` : ''}${S.h24 ? '' : '<div class="led-ap"></div>'}</div>`;
+    Object.assign(face, {digits: $$('.seg-d', el), ap: $('.led-ap', el), colons: $$('.led-colon', el)});
+  } else if (sk.type === 'word') {
+    let h = '<div class="wordclock">';
+    WC_ROWS.forEach(r => [...r].forEach(ch => h += `<span>${ch}</span>`));
+    h += ['top:.3em;left:.3em', 'top:.3em;right:.3em', 'bottom:.3em;right:.3em', 'bottom:.3em;left:.3em'].map(p => `<i class="wc-dot" style="${p}"></i>`).join('') + '</div>';
+    el.innerHTML = h;
+    Object.assign(face, {letters: $$('.wordclock span', el), dots: $$('.wc-dot', el)});
+  } else {
+    el.innerHTML = analogSVG(S.skin);
+    Object.assign(face, {svg: $('svg', el), style: S.skin});
+  }
+  $('#clockLabel').style.display = S.showLabel ? '' : 'none';
+  $('#clockDate').style.display = S.showDate ? '' : 'none';
+  $('#secBar').style.display = (S.secBar && sk.type !== 'analog') ? '' : 'none';
+  const tz = clockTz(), now = Date.now();
+  $('#clockLabel').textContent = clockName() + (S.clockTz && S.clockTz !== LOCAL_TZ ? ' · ' + utcLabel(tzOffset(tz, now)) : '');
+  $('#clockDate')._v = '';
+  updateClock(now, true);
+}
+function setFlip(c, v) {
+  if (c._v === v) return;
+  const o = c._v, parts = [...c.children].map(x => x.firstChild);
+  c._v = v;
+  if (o === undefined) { parts.forEach(x => x.textContent = v); return; }
+  const [top, bot, front, back] = parts;
+  top.textContent = v; bot.textContent = o; front.textContent = o; back.textContent = v;
+  c.classList.remove('go'); void c.offsetWidth; c.classList.add('go');
+  clearTimeout(c._t);
+  c._t = setTimeout(() => { bot.textContent = v; front.textContent = v; c.classList.remove('go'); }, 600);
+}
+function setLed(d, ch) {
+  if (d._v === ch) return;
+  d._v = ch;
+  const on = SEGS[ch] || '';
+  for (const s of d.children) s.classList.toggle('on', on.includes(s.classList[1]));
+}
+function updateClock(now, secChanged) {
+  const tz = clockTz(), p = zp(now, tz), t = face.type;
+  if (t === 'analog') setAnalog(face.svg, p, face.style, S.showSec);
+  if (S.secBar && t !== 'analog') $('#secBar i').style.width = ((p.s + p.ms / 1000) / 60 * 100).toFixed(2) + '%';
+  if (!secChanged) return;
+  const f = fmtHM(p);
+  if (t === 'digital') {
+    setDigits(face.hh, f.h); setDigits(face.mm, f.m);
+    if (face.ss) setDigits(face.ss, f.s);
+    if (face.ap) face.ap.textContent = f.ap;
+    face.colon.style.opacity = S.blink && p.s % 2 ? .2 : 1;
+    if (f.h.length !== face.len) { face.len = f.h.length; fitClock(); }
+  } else if (t === 'flip') {
+    const str = f.h.padStart(2, ' ') + f.m + (S.showSec ? f.s : '');
+    face.cards.forEach((c, i) => setFlip(c, str[i] === ' ' ? '' : str[i]));
+    if (face.ap) face.ap.textContent = f.ap;
+  } else if (t === 'led') {
+    const str = f.h.padStart(2, ' ') + f.m + (S.showSec ? f.s : '');
+    face.digits.forEach((d, i) => setLed(d, str[i]));
+    if (face.ap) face.ap.textContent = f.ap;
+    face.colons.forEach(c => c.style.opacity = S.blink && p.s % 2 ? .15 : 1);
+  } else if (t === 'word' && face.min !== p.mi) {
+    face.min = p.mi;
+    const words = ['IT', 'IS', ...MINW[Math.floor(p.mi / 5)]];
+    words.push(HOURW[(p.h + (p.mi >= 35 ? 1 : 0)) % 12]);
+    const lit = new Set();
+    words.forEach(w => { const [r, c, n] = WC[w]; for (let i = 0; i < n; i++) lit.add(r * 11 + c + i); });
+    face.letters.forEach((l, i) => l.classList.toggle('on', lit.has(i)));
+    face.dots.forEach((d, i) => d.classList.toggle('on', i < p.mi % 5));
+  }
+  if (S.showDate) {
+    const ds = fmtDate(p, true), de = $('#clockDate');
+    if (de._v !== ds) { de._v = ds; de.textContent = ds; }
+  }
+  updateStrip(now);
+}
+function fitClock() {
+  const sec = $('#mode-clock');
+  if (!sec.classList.contains('active')) return;
+  const sk = SKINS[S.skin], el = $('#clockFace'), strip = $('#worldStrip');
+  const W = sec.clientWidth - 48;
+  const H = sec.clientHeight - 48 - (strip.style.display === 'none' ? 0 : strip.offsetHeight);
+  const extras = (S.showDate ? 1 : 0) + (S.showLabel ? 1 : 0);
+  const k = S.size / 100;
+  let dsz;
+  if (sk.type === 'analog') {
+    const d = Math.max(60, Math.min(W * .92, H * (extras ? (extras === 2 ? .74 : .82) : .94)) * k);
+    face.svg.style.width = face.svg.style.height = d + 'px';
+    dsz = d * .052;
+  } else {
+    const maxH = H * (extras === 2 ? .62 : extras ? .72 : .86) * (sk.type === 'word' ? 1.25 : 1);
+    const s = fitText(el, W * .94, maxH, k);
+    dsz = s * (sk.type === 'word' ? .42 : .12);
+    $('#secBar').style.width = Math.min(el.getBoundingClientRect().width, W) * .6 + 'px';
+  }
+  sec.style.setProperty('--dsz', Math.max(12, Math.min(60, dsz)) + 'px');
+}
+function buildStrip() {
+  const el = $('#worldStrip'), tz = clockTz();
+  const list = S.showStrip ? S.cities.filter(c => c.tz !== tz).slice(0, 6) : [];
+  el.style.display = list.length ? '' : 'none';
+  el.innerHTML = list.map(c => `<div class="ws-item" data-tz="${esc(c.tz)}"><div class="ws-name">${esc(c.name)}</div><div class="ws-time"></div><div class="ws-diff"></div></div>`).join('');
+  el._items = $$('.ws-item', el).map(n => ({n, tz: n.dataset.tz, t: $('.ws-time', n), d: $('.ws-diff', n)}));
+  updateStrip(Date.now()); // fill now, otherwise the empty strip grows a second later and the clock jumps
+}
+function updateStrip(now) {
+  const el = $('#worldStrip');
+  if (!el._items || !el._items.length) return;
+  const tz = clockTz(), bp = zp(now, tz), bo = tzOffset(tz, now);
+  for (const it of el._items) {
+    const p = zp(now, it.tz), rel = dayDiff(p, bp);
+    it.t.textContent = fmtShort(p);
+    it.d.textContent = diffLabel(tzOffset(it.tz, now) - bo) + (rel ? ' · ' + dayRel(p, bp) : '');
+  }
+}
+
+/* ================= world grid ================= */
+const ICONS = {
+  day: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>',
+  night: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  dawn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v4M10 7l2-2 2 2M4.5 11.5l1.5 1M19.5 11.5l-1.5 1"/></svg>',
+  dusk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v4M10 7l2 2 2-2M4.5 11.5l1.5 1M19.5 11.5l-1.5 1"/></svg>',
+};
+const anStyle = () => SKINS[S.skin].type === 'analog' ? S.skin : 'modern';
+let worldCards = [];
+function buildWorld() {
+  const g = $('#worldGrid');
+  if (!S.cities.length) {
+    g.style.gridTemplateColumns = '1fr'; g.style.gridTemplateRows = '1fr';
+    g.innerHTML = `<div class="empty">${T('noCities')}<button class="btn primary" data-act="add">${T('addACity')}</button></div>`;
+    worldCards = [];
+    return;
+  }
+  const st = anStyle();
+  g.innerHTML = S.cities.map(c => `<div class="card${c.tz === LOCAL_TZ ? ' home' : ''}${S.worldAnalog ? ' has-an' : ''}" draggable="true" data-id="${c.id}" title="Double-click to show on the big clock"><div class="ci">
+    <div class="c-top"><div style="min-width:0"><div class="c-name">${esc(c.name)}</div><div class="c-sub"></div></div><div class="c-icon"></div></div>
+    <div class="c-mid">${S.worldAnalog ? `<div class="c-an">${analogSVG(st)}</div>` : ''}<div class="c-time"><span class="t"></span><span class="side"><span class="ap"></span>${S.worldSec ? '<span class="s"></span>' : ''}</span></div></div>
+    <div class="c-foot"><span class="c-date"></span><span class="c-diff"></span></div>
+  </div><button class="card-x" title="${T('remove')}" aria-label="${T('remove')} ${esc(c.name)}">&times;</button></div>`).join('');
+  worldCards = S.cities.map(c => {
+    const el = g.querySelector(`[data-id="${c.id}"]`);
+    return {c, el, sub: $('.c-sub', el), icon: $('.c-icon', el), t: $('.t', el), s: $('.s', el), ap: $('.ap', el), date: $('.c-date', el), diff: $('.c-diff', el), svg: $('.c-an svg', el), ph: ''};
+  });
+  layoutWorld();
+  updateWorld(Date.now());
+}
+function layoutWorld() {
+  const g = $('#worldGrid'), n = S.cities.length;
+  if (!n || !g.clientWidth) return;
+  const W = g.clientWidth, H = g.clientHeight, gap = 14, ratio = S.worldAnalog ? 1.25 : 1.6;
+  let best = {c: 1, r: n, sc: 0};
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c), w = (W - (c - 1) * gap) / c, h = (H - (r - 1) * gap) / r;
+    const sc = Math.min(w / ratio, h);
+    if (sc > best.sc) best = {c, r, sc};
+  }
+  g.style.gridTemplateColumns = `repeat(${best.c}, minmax(0, 1fr))`;
+  g.style.gridTemplateRows = `repeat(${best.r}, minmax(0, 1fr))`;
+}
+function updateWorld(now) {
+  const lp = zp(now, LOCAL_TZ), lo = tzOffset(LOCAL_TZ, now);
+  for (const w of worldCards) {
+    const p = zp(now, w.c.tz), off = tzOffset(w.c.tz, now), f = fmtHM(p);
+    w.t.textContent = `${f.h}:${f.m}`;
+    if (w.s) w.s.textContent = f.s;
+    w.ap.textContent = f.ap;
+    w.sub.textContent = `${w.c.country || ''}${w.c.country ? ' · ' : ''}${utcLabel(off)}`;
+    w.date.textContent = fmtDate(p);
+    w.diff.textContent = w.c.tz === LOCAL_TZ ? T('localTime') : `${diffLabel(off - lo)} · ${dayRel(p, lp)}`;
+    const ph = phaseOf(p);
+    if (ph !== w.ph) { w.el.classList.remove('ph-' + w.ph); w.el.classList.add('ph-' + ph); w.icon.innerHTML = ICONS[ph]; w.ph = ph; }
+  }
+}
+function updateWorldAnalog(now) {
+  const st = anStyle();
+  for (const w of worldCards) if (w.svg) setAnalog(w.svg, zp(now, w.c.tz), st, S.worldSec);
+}
+
+/* ================= compare ================= */
+const cmp = {day: 0, cur: null, lock: false, start: 0, end: 0, homeKey: ''};
+const homeCity = () => S.cities.find(c => c.id === S.compareHome) || S.cities[0];
+function hourClass(p) {
+  const h = p.h + p.mi / 60;
+  if (isWork(p)) return 'work';
+  return h < 7 || h >= 22 ? 'night' : 'day';
+}
+const isWork = p => { const h = p.h + p.mi / 60; return p.wd >= 1 && p.wd <= 5 && h >= S.workStart && h < S.workEnd; };
+function buildCompare() {
+  const rowsEl = $('#cmpRows'), home = homeCity();
+  if (!home) {
+    rowsEl.innerHTML = `<div class="empty" style="margin:auto">${T('compareEmpty')}<button class="btn primary" data-act="add">${T('addACity')}</button></div>`;
+    $('#cmpDate').textContent = ''; $('#cmpReadout').textContent = ''; $('#cmpPlanner').innerHTML = '';
+    return;
+  }
+  const now = Date.now(), hp = zp(now, home.tz);
+  const base = new Date(Date.UTC(hp.y, hp.mo - 1, hp.d + cmp.day)), next = new Date(Date.UTC(hp.y, hp.mo - 1, hp.d + cmp.day + 1));
+  cmp.start = zonedToEpoch(home.tz, base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate());
+  cmp.end = zonedToEpoch(home.tz, next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+  cmp.homeKey = `${hp.y}-${hp.mo}-${hp.d}`;
+  const span = cmp.end - cmp.start, hours = Math.round(span / 3600000);
+  const sp = zp(cmp.start, home.tz);
+  $('#cmpDate').textContent = fmtDate(sp) + (Math.abs(cmp.day) <= 1 ? ' · ' + T(['yesterday', 'today', 'tomorrow'][cmp.day + 1]) : '');
+  const N = S.cities.length;
+  let html = '';
+  for (const c of S.cities) {
+    let cells = '';
+    for (let i = 0; i < hours; i++) {
+      const p = zp(cmp.start + i * 3600000, c.tz);
+      // Plain hour numbers; the day name marks midnight so date changes stand out.
+      const mid = p.h === 0;
+      const label = mid ? DAYS[p.wd] : (S.h24 ? p.h : (p.h % 12 || 12)) + (p.mi ? ':' + pad(p.mi) : '');
+      cells += `<div class="hc ${hourClass(p)}${mid ? ' mid' : ''}${p.mi && !mid ? ' hm' : ''}">${label}</div>`;
+    }
+    html += `<div class="cmp-row${c.id === home.id ? ' home' : ''}" data-id="${c.id}"><div class="cmp-lab"><div class="cl-top"><span class="cl-name">${esc(c.name)}</span><span class="cl-acts"><button data-act="home" title="Use as reference">&#9733;</button><button data-act="rm" title="${T('remove')}">&times;</button></span></div><div class="cl-time"></div><div class="cl-sub"></div></div><div class="cmp-strip">${cells}</div></div>`;
+  }
+  // overlap of working hours in 30-minute slots
+  const slots = [];
+  for (let t = cmp.start; t < cmp.end; t += 1800000) {
+    let n = 0;
+    for (const c of S.cities) if (isWork(zp(t + 900000, c.tz))) n++;
+    slots.push({t, n});
+  }
+  const ranges = n => {
+    const out = [];
+    let cur = null;
+    for (const s of slots) {
+      if (s.n === n) { if (cur) cur.e = s.t + 1800000; else cur = {s: s.t, e: s.t + 1800000}; }
+      else if (cur) { out.push(cur); cur = null; }
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  const pct = t => ((t - cmp.start) / span * 100).toFixed(3) + '%';
+  const full = N >= 2 ? ranges(N) : [];
+  html +=`<div class="cmp-overlay">${full.map(r => `<div class="ovcol" style="left:${pct(r.s)};width:${((r.e - r.s) / span * 100).toFixed(3)}%"></div>`).join('')}<div class="cmp-now"></div><div class="cmp-cur"></div></div>`;
+  rowsEl.innerHTML = html;
+  cmp.rows = S.cities.map(c => { const r = rowsEl.querySelector(`[data-id="${c.id}"]`); return {c, t: $('.cl-time', r), s: $('.cl-sub', r)}; });
+  // planner text
+  // One short suggestion, in the reference city's time; "Show" pins it so every row shows its local time.
+  const win = r => `<b>${fmtShort(zp(r.s, home.tz))} – ${fmtShort(zp(r.e, home.tz))}</b> <button class="pill-btn" data-pin="${r.s}">${T('showBtn')}</button>`;
+  let plan;
+  if (N < 2) plan = T('addAnother');
+  else if (full.length) plan = `<span><span class="ok">${T('bestTime')}</span> ${win(full[0])}${full.length > 1 ? ` <span>(${T('nMore', {n: full.length - 1})})</span>` : ''}</span>`;
+  else {
+    const best = Math.max(...slots.map(s => s.n));
+    plan = best ? `<span>${T('noOverlap', {k: best, n: N})} ${win(ranges(best)[0])}</span>` : `<span>${T('noWork')}</span>`;
+  }
+  plan += `<div class="legend"><span><i style="background:color-mix(in srgb,var(--accent) 45%,transparent)"></i>${T('workHours')}</span><span><i style="background:color-mix(in srgb,var(--fg) 14%,transparent)"></i>${T('awake')}</span><span><i style="background:var(--faint)"></i>${T('night')}</span><span><i style="border:2px solid #3ddc97"></i>${T('everyoneWorking')}</span></div>`;
+  $('#cmpPlanner').innerHTML = plan;
+  updateCompare(now);
+}
+function updateCompare(now) {
+  const home = homeCity();
+  if (!home || !cmp.rows) return;
+  if (cmp.day === 0) { const hp = zp(now, home.tz); if (`${hp.y}-${hp.mo}-${hp.d}` !== cmp.homeKey) return buildCompare(); }
+  const t = cmp.cur ?? now, span = cmp.end - cmp.start;
+  const hp = zp(t, home.tz), ho = tzOffset(home.tz, t);
+  for (const r of cmp.rows) {
+    const p = zp(t, r.c.tz), off = tzOffset(r.c.tz, t);
+    r.t.textContent = fmtShort(p);
+    r.s.textContent = r.c.id === home.id ? T('reference') : diffLabel(off - ho) + (dayDiff(p, hp) ? ' · ' + dayRel(p, hp) : '');
+  }
+  const nowEl = $('.cmp-now'), curEl = $('.cmp-cur');
+  if (nowEl) {
+    const inRange = now >= cmp.start && now < cmp.end;
+    nowEl.style.display = inRange ? '' : 'none';
+    if (inRange) nowEl.style.left = ((now - cmp.start) / span * 100) + '%';
+  }
+  if (curEl) {
+    curEl.classList.toggle('on', cmp.cur != null);
+    curEl.classList.toggle('locked', cmp.lock);
+    if (cmp.cur != null) curEl.style.left = ((cmp.cur - cmp.start) / span * 100) + '%';
+  }
+  $('#cmpReadout').innerHTML = cmp.cur != null
+    ? T('showing', {time: `<b>${fmtShort(hp)} ${esc(DAYS[hp.wd])}</b>`, city: esc(home.name)}) + (cmp.lock ? ' · ' + T('clickRelease') : '')
+    : T('hoverHint');
+}
+function cmpPointer(e) {
+  const ov = $('.cmp-overlay');
+  if (!ov) return null;
+  const r = ov.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+  if (f < 0 || f > 1) return null;
+  const t = Math.round((cmp.start + f * (cmp.end - cmp.start)) / 900000) * 900000;
+  return Math.min(Math.max(t, cmp.start), cmp.end - 1);
+}
+
+/* ================= extras ================= */
+function fmtDur(ms) {
+  ms = Math.max(0, ms);
+  const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ':' + pad(m) : pad(m)) + ':' + pad(s);
+}
+const swElapsed = now => S.sw.acc + (S.sw.run ? now - S.sw.start : 0);
+const cdLeft = now => S.cd.run ? Math.max(0, S.cd.end - now) : S.cd.left;
+const pomoMs = ph => (ph === 'work' ? S.pomo.work : ph === 'short' ? S.pomo.short : S.pomo.long) * 60000;
+const pomoLeft = now => S.pomo.run ? Math.max(0, S.pomo.end - now) : S.pomo.left;
+function swToggle() { const now = Date.now(), s = S.sw; if (s.run) { s.acc += now - s.start; s.run = false; } else { s.start = now; s.run = true; } save(); renderXCtrls(); }
+function swLap() { const e = swElapsed(Date.now()); if (!e) return; S.sw.laps.unshift(e); S.sw.laps = S.sw.laps.slice(0, 99); save(); renderLaps(); }
+function swReset() { S.sw = {run: false, start: 0, acc: 0, laps: []}; save(); renderLaps(); renderXCtrls(); }
+function cdToggle() {
+  const now = Date.now(), c = S.cd;
+  if (c.run) { c.left = Math.max(0, c.end - now); c.run = false; }
+  else { if (c.left <= 0) c.left = c.dur; if (c.left <= 0) return; c.end = now + c.left; c.run = true; }
+  save(); renderXCtrls();
+}
+function cdSet(ms) { S.cd = {dur: ms, run: false, end: 0, left: ms}; save(); renderXCtrls(); toast(T('timerSet', {t: fmtDur(ms)})); }
+function cdAdd(ms) { const c = S.cd; if (c.run) c.end += ms; else c.left += ms; c.dur = Math.max(c.dur, cdLeft(Date.now())); save(); }
+function cdReset() { S.cd.run = false; S.cd.left = S.cd.dur; save(); renderXCtrls(); }
+function pomoToggle() { const now = Date.now(), p = S.pomo; if (p.run) { p.left = Math.max(0, p.end - now); p.run = false; } else { p.end = now + p.left; p.run = true; } save(); renderXCtrls(); }
+function pomoAdvance(auto) {
+  const p = S.pomo;
+  if (p.phase === 'work') p.phase = p.round % p.rounds === 0 ? 'long' : 'short';
+  else { p.round = p.phase === 'long' ? 1 : p.round + 1; p.phase = 'work'; }
+  p.left = pomoMs(p.phase);
+  if (auto && p.run) p.end = Date.now() + p.left; else p.run = false;
+  save(); renderXCtrls(); renderPomoDots();
+}
+function pomoReset() { Object.assign(S.pomo, {phase: 'work', round: 1, run: false, end: 0, left: S.pomo.work * 60000}); save(); renderXCtrls(); renderPomoDots(); }
+const PH_NAME = {get work() { return T('focus'); }, get short() { return T('shortBreak'); }, get long() { return T('longBreak'); }};
+function renderXCtrls() {
+  $('#swGo').textContent = T(S.sw.run ? 'pause' : (S.sw.acc ? 'resume' : 'start'));
+  $('#cdGo').textContent = T(S.cd.run ? 'pause' : (S.cd.left < S.cd.dur && S.cd.left > 0 ? 'resume' : 'start'));
+  $('#pomoGo').textContent = T(S.pomo.run ? 'pause' : 'start');
+  $('#pomoLabel').textContent = `${PH_NAME[S.pomo.phase]} · ${T('roundOf', {r: S.pomo.round, n: S.pomo.rounds})}`;
+  $('#pW').value = S.pomo.work; $('#pS').value = S.pomo.short; $('#pL').value = S.pomo.long; $('#pR').value = S.pomo.rounds;
+}
+function renderLaps() {
+  const L = S.sw.laps;
+  $('#swLaps').innerHTML = L.map((t, i) => {
+    const split = t - (L[i + 1] || 0), sp = String(Math.floor(split % 1000 / 10)).padStart(2, '0'), tp = String(Math.floor(t % 1000 / 10)).padStart(2, '0');
+    return `<div class="lap"><span>${T('lapN', {n: L.length - i})}</span><span>${fmtDur(split)}.${sp}</span><span>${fmtDur(t)}.${tp}</span></div>`;
+  }).join('');
+}
+function renderPomoDots() { const p = S.pomo, done = p.phase === 'work' ? p.round - 1 : p.round; $('#pomoDots').innerHTML = Array.from({length: p.rounds}, (_, i) => `<i class="${i < done ? 'done' : ''}"></i>`).join(''); }
+let xLen = {};
+function updateExtras(now) {
+  const tab = S.xtab;
+  let el, str;
+  if (tab === 'sw') { const e = swElapsed(now); el = $('#swBig'); str = fmtDur(e) + '.' + pad(Math.floor(e % 1000 / 10)); }
+  else if (tab === 'cd') { const l = cdLeft(now); el = $('#cdBig'); str = fmtDur(Math.ceil(l / 1000) * 1000); $('#cdBar').style.width = (S.cd.dur ? l / S.cd.dur * 100 : 0) + '%'; }
+  else { const l = pomoLeft(now); el = $('#pomoBig'); str = fmtDur(Math.ceil(l / 1000) * 1000); $('#pomoBar').style.width = (l / pomoMs(S.pomo.phase) * 100) + '%'; }
+  if (tab === 'sw') {
+    const [main, cs] = str.split('.');
+    if (el._v !== str) { el._v = str; if (!el._m) { el.innerHTML = '<span class="mn"></span><span class="cs"></span>'; el._m = $('.mn', el); el._c = $('.cs', el); } setDigits(el._m, main); setDigits(el._c, '.' + cs); }
+  } else setDigits(el, str);
+  if (xLen[tab] !== str.length) { xLen[tab] = str.length; fitExtras(); }
+}
+function fitExtras() {
+  const sec = $('#mode-extras');
+  if (!sec.classList.contains('active')) return;
+  const el = $('#' + {sw: 'swBig', cd: 'cdBig', pomo: 'pomoBig'}[S.xtab]);
+  fitText(el, sec.clientWidth * .9, sec.clientHeight * .38, S.size / 100 + .1);
+}
+function setXtab(t) {
+  S.xtab = t; save();
+  $$('[data-xtab]').forEach(b => b.classList.toggle('on', b.dataset.xtab === t));
+  $$('.x-panel').forEach(p => p.classList.toggle('on', p.id === 'x-' + t));
+  xLen = {};
+  updateExtras(Date.now());
+}
+
+/* ================= audio & alerts ================= */
+let actx;
+function beep(freq = 880, dur = .18, when = 0, vol = .28) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + .05);
+  } catch (e) {}
+}
+const chime = () => { beep(660, .3, 0); beep(880, .3, .2); beep(1100, .5, .4); };
+let ringT = null, ringing = false;
+function ring(msg) {
+  ringing = true; $('#ringMsg').textContent = msg; $('#ring').classList.add('on');
+  let n = 0;
+  const go = () => { beep(880, .14, 0); beep(880, .14, .22); beep(880, .14, .44); beep(1320, .3, .66); if (++n < 40) ringT = setTimeout(go, 1600); };
+  clearTimeout(ringT); go();
+}
+function dismissRing() { ringing = false; clearTimeout(ringT); $('#ring').classList.remove('on'); }
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
+
+/* ================= picker ================= */
+let pick = {cb: null, items: [], sel: 0, local: false};
+function openPicker(cb, opts = {}) {
+  pick = {cb, items: [], sel: 0, local: !!opts.local};
+  $('#pickTitle').textContent = T(opts.local ? 'chooseCity' : 'addACityTitle');
+  $('#picker').classList.add('open');
+  $('#pickQ').value = '';
+  renderPick();
+  setTimeout(() => $('#pickQ').focus(), 30);
+}
+function closePicker() { $('#picker').classList.remove('open'); }
+const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+function renderPick() {
+  const q = norm($('#pickQ').value.trim()), now = Date.now();
+  let items = [];
+  if (pick.local && (!q || (norm('local time').includes(q) || norm(T('localTime')).includes(q)))) items.push({name: T('localTime'), country: tzCity(LOCAL_TZ), tz: LOCAL_TZ, local: true});
+  const cities = CITIES.filter(c => !q || norm(c.name).includes(q) || norm(c.country).includes(q) || norm(c.tz).includes(q));
+  if (q) cities.sort((a, b) => (norm(b.name).startsWith(q) - norm(a.name).startsWith(q)));
+  items.push(...cities);
+  if (q) {
+    const have = new Set(cities.map(c => c.tz));
+    for (const z of ALL_ZONES) if (!have.has(z) && norm(z.replace(/_/g, ' ')).includes(q)) { items.push({name: tzCity(z), country: z, tz: z}); have.add(z); }
+  }
+  items = items.slice(0, 120);
+  pick.items = items; pick.sel = Math.min(pick.sel, Math.max(0, items.length - 1));
+  $('#pickList').innerHTML = items.length ? items.map((c, i) => {
+    const p = zp(now, c.tz), day = p.h >= 7 && p.h < 19;
+    const have = !pick.local && S.cities.some(x => x.tz === c.tz && x.name === c.name);
+    return `<div class="pk${i === pick.sel ? ' sel' : ''}" data-i="${i}"><span class="pk-ic${day ? ' day' : ''}">${day ? SUN : MOON}</span><div class="pk-main"><div class="pk-n">${esc(c.name)}${have ? ' <span class="pk-badge">✓</span>' : ''}</div><div class="pk-c">${esc(c.country)}</div></div><div class="pk-t">${fmtShort(p)}<div class="pk-c">${utcLabel(tzOffset(c.tz, now))}</div></div></div>`;
+  }).join('') : `<div class="pk-none">${T('noMatch')}</div>`;
+}
+function choosePick(i) { const it = pick.items[i]; if (!it) return; closePicker(); pick.cb && pick.cb(it); }
+function addCity(it) {
+  if (S.cities.some(c => c.tz === it.tz && c.name === it.name)) { toast(T('alreadyAdded', {x: it.name})); return; }
+  S.cities.push(mkCity(it.local ? tzCity(LOCAL_TZ) : it.name, it.local ? countryOf(LOCAL_TZ) : it.country, it.tz));
+  citiesChanged(); toast(T('added', {x: it.name}));
+}
+function setClockTz(it) {
+  S.clockTz = it.local ? null : it.tz; S.clockName = it.local ? '' : it.name;
+  save(); syncTzBtn(); buildClock(); buildStrip(); applyBg(); refit();
+}
+const syncTzBtn = () => { $('#clockTzBtn').textContent = S.clockTz ? clockName() : `${T('local')} · ${tzCity(LOCAL_TZ)}`; };
+
+/* ================= settings UI ================= */
+function buildSettingsUI() {
+  $('#skinGrid').innerHTML = SKIN_KEYS.map(k => {
+    const sk = SKINS[k];
+    let prev;
+    if (sk.type === 'analog') prev = analogSVG(k);
+    else if (sk.type === 'word') prev = `<span style="font-family:${FONTS[sk.font][1]};font-size:11px;letter-spacing:.1em;font-weight:700">IT IS<br>TEN</span>`;
+    else if (sk.type === 'led') prev = `<span style="font-family:'Share Tech Mono';color:var(--accent)">12:34</span>`;
+    else if (sk.type === 'flip') prev = `<span style="font-family:${FONTS[sk.font][1]};display:flex;gap:2px">${'12'.split('').map(d => `<b style="background:var(--card);padding:1px 4px;border-radius:3px;font-weight:400">${d}</b>`).join('')}</span>`;
+    else prev = `<span style="font-family:${FONTS[sk.font][1]};font-weight:${sk.weight};${sk.glow ? 'text-shadow:0 0 6px var(--accent);' : ''}${k === 'terminal' ? 'color:var(--accent);' : ''}">12:34</span>`;
+    return `<button class="skin-btn" data-skin="${k}"><div class="skin-prev">${prev}</div>${sk.name}</button>`;
+  }).join('');
+  $$('#skinGrid svg').forEach(svg => { const st = svg.classList[1].slice(3); setAnalog(svg, {h: 10, mi: 9, s: 36, ms: 0, d: 15}, st); });
+  $('#themeGrid').innerHTML = Object.entries(THEMES).map(([k, [n, bg, fg, ac]]) => `<button class="sw" data-theme="${k}" style="background:${bg};color:${fg};--sa:${ac}" title="${n}">${n}</button>`).join('');
+  $('#fontSel').innerHTML = `<option value="skin">${T('skinDefault')}</option>` + Object.entries(FONTS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
+  $('#bgSel').innerHTML = Object.entries(BGS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
+  const hrs = Array.from({length: 24}, (_, h) => `<option value="${h}">${pad(h)}:00</option>`).join('');
+  ['#wsSel', '#weSel', '#dsSel', '#deSel'].forEach(s => $(s).innerHTML = hrs);
+  $('#weSel').innerHTML += '<option value="24">24:00</option>';
+  const auto = LANGS.find(([k]) => k === resolveLang('auto'));
+  $('#langSel').innerHTML = `<option value="auto">Auto · ${auto ? auto[1] : 'English'}</option>` + LANGS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+  $('#cdPresets').innerHTML = [1, 3, 5, 10, 15, 25, 30, 45, 60].map(m => `<button class="pill-btn" data-min="${m}">${m < 60 ? T('nMin', {n: m}) : T('oneHour')}</button>`).join('');
+}
+function syncSettingsUI() {
+  $$('[data-k]').forEach(el => { const v = S[el.dataset.k]; if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; });
+  $$('[data-rv]').forEach(el => el.textContent = S[el.dataset.rv] + (el.dataset.rv === 'bgBlur' ? 'px' : '%'));
+  $$('.skin-btn').forEach(b => b.classList.toggle('on', b.dataset.skin === S.skin));
+  $$('.sw').forEach(b => b.classList.toggle('on', b.dataset.theme === S.theme));
+  syncTzBtn();
+  buildCityList();
+}
+function buildCityList() {
+  $('#cityList').innerHTML = S.cities.map((c, i) => `<div class="cl-row" data-id="${c.id}"><input class="cl-in" value="${esc(c.name)}" aria-label="City name"><span class="cl-tz" title="${esc(c.tz)}">${esc(c.tz)}</span><button data-a="up" ${i === 0 ? 'disabled' : ''} title="${T('moveUp')}">&uarr;</button><button data-a="down" ${i === S.cities.length - 1 ? 'disabled' : ''} title="${T('moveDown')}">&darr;</button><button data-a="rm" title="${T('remove')}">&times;</button></div>`).join('') || '<p class="hint">No cities yet.</p>';
+}
+const REBUILD = new Set(['lang', 'skin', 'h24', 'showSec', 'showDate', 'showLabel', 'leadingZero', 'showStrip', 'secBar', 'worldAnalog', 'worldSec', 'workStart', 'workEnd', 'font', 'weight']);
+function onSetting(k) {
+  if (k === 'lang') { applyLang(S.lang); buildSettingsUI(); syncSettingsUI(); renderXCtrls(); renderLaps(); updateWakeState(); }
+  if (k === 'bg' || k === 'fg' || k === 'accent') S.theme = 'custom';
+  applyLook();
+  if (REBUILD.has(k)) rebuildAll(); else refit();
+  if (k === 'keepAwake') wake();
+  if (k === 'nightDim' || k.startsWith('dim')) updateDim();
+  if (k === 'burnIn' && !S.burnIn) $('#stage').style.transform = '';
+  if (k === 'autoHide') poke();
+  $$('[data-rv]').forEach(el => el.textContent = S[el.dataset.rv] + (el.dataset.rv === 'bgBlur' ? 'px' : '%'));
+  $$('.skin-btn').forEach(b => b.classList.toggle('on', b.dataset.skin === S.skin));
+  $$('.sw').forEach(b => b.classList.toggle('on', b.dataset.theme === S.theme));
+  save();
+}
+function bindSettings() {
+  $$('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    const live = el.type === 'range' || el.type === 'color';
+    el.addEventListener(live ? 'input' : 'change', () => {
+      let v = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.type === 'range' || el.hasAttribute('data-num')) v = Number(v);
+      S[k] = v; onSetting(k);
+    });
+  });
+}
+// Fade the clock out, swap the skin once its font is ready and the face is sized, then fade back in.
+const fontSpec = () => `${S.weight === 'auto' ? SKINS[S.skin].weight : S.weight} 100px ${skinFont()[1]}`;
+const fontReady = () => document.fonts ? Promise.race([document.fonts.load(fontSpec()).catch(() => {}), new Promise(r => setTimeout(r, 700))]) : Promise.resolve();
+let skinT, skinSeq = 0;
+function setSkin(k) {
+  if (k === S.skin) return;
+  const seq = ++skinSeq, wrap = $('#clockWrap'), visible = S.mode === 'clock';
+  S.skin = k;
+  $$('.skin-btn').forEach(b => b.classList.toggle('on', b.dataset.skin === k));
+  toast(T('skinToast', {x: SKINS[k].name}));
+  if (visible) wrap.classList.add('swap');
+  clearTimeout(skinT);
+  skinT = setTimeout(async () => {
+    await fontReady();
+    if (seq !== skinSeq) return;
+    onSetting('skin');
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.remove('swap')));
+  }, visible ? 200 : 0);
+}
+function cycleSkin(d) { const i = SKIN_KEYS.indexOf(S.skin); setSkin(SKIN_KEYS[(i + d + SKIN_KEYS.length) % SKIN_KEYS.length]); }
+function setTheme(k) { const [, bg, fg, ac] = THEMES[k]; Object.assign(S, {theme: k, bg, fg, accent: ac}); applyLook(); syncSettingsUI(); rebuildAll(); save(); }
+
+/* ================= orchestration ================= */
+function citiesChanged() { save(); buildStrip(); buildWorld(); cmp.cur = null; cmp.lock = false; buildCompare(); buildCityList(); refit(); }
+function rebuildAll() { buildClock(); buildStrip(); buildWorld(); buildCompare(); refit(); }
+function refit() {
+  if (S.mode === 'clock') fitClock();
+  else if (S.mode === 'world') layoutWorld();
+  else if (S.mode === 'extras') fitExtras();
+}
+function setMode(m) {
+  S.mode = m; save();
+  document.body.dataset.mode = m;
+  $$('.mode').forEach(s => s.classList.toggle('active', s.id === 'mode-' + m));
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.mode === m));
+  if (m === 'clock') { face.len = -1; fitClock(); }
+  if (m === 'world') { layoutWorld(); updateWorld(Date.now()); }
+  if (m === 'compare') buildCompare();
+  if (m === 'extras') { xLen = {}; setXtab(S.xtab); }
+}
+const toggleDrawer = (open) => { const d = $('#drawer'); d.classList.toggle('open', open ?? !d.classList.contains('open')); poke(); };
+async function toggleFS() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen({navigationUI: 'hide'});
+  } catch (e) { toast(T('fsNA')); }
+}
+document.addEventListener('fullscreenchange', () => {
+  $('#fsBtn').innerHTML = document.fullscreenElement
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  wake();
+});
+
+/* wake lock */
+let wl = null;
+async function wake() {
+  try {
+    if (S.keepAwake && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+      if (!wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; updateWakeState(); }); }
+    } else if (!S.keepAwake && wl) { await wl.release(); wl = null; }
+  } catch (e) {}
+  updateWakeState();
+}
+function updateWakeState() {
+  const el = $('#wakeState');
+  if (!('wakeLock' in navigator)) el.textContent = '(not supported)';
+  else { el.textContent = wl ? '● active' : ''; el.className = 'hint' + (wl ? ' wake-ok' : ''); }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { wake(); _off.clear(); } });
+
+/* idle auto-hide */
+let idleT;
+function poke() {
+  document.body.classList.remove('idle');
+  clearTimeout(idleT);
+  if (S.autoHide) idleT = setTimeout(() => {
+    if (!$('#drawer').classList.contains('open') && !$('.modal.open') && !document.activeElement.matches('input,select')) document.body.classList.add('idle');
+  }, 3000);
+}
+['mousemove', 'pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev => addEventListener(ev, poke, {passive: true}));
+
+/* burn-in & night dim */
+setInterval(() => {
+  if (!S.burnIn) return;
+  const r = () => ((Math.random() * 2 - 1) * 4).toFixed(1);
+  $('#stage').style.transform = `translate(${r()}px, ${r()}px)`;
+}, 120000);
+function updateDim() {
+  const h = zp(Date.now(), LOCAL_TZ).h, a = S.dimStart, b = S.dimEnd;
+  const on = S.nightDim && (a < b ? h >= a && h < b : h >= a || h < b);
+  $('#dim').style.opacity = on ? (S.dimLevel / 100 * .85).toFixed(2) : 0;
+}
+
+/* ================= main loop ================= */
+let lastSec = -1, lastMin = -1;
+function frame() {
+  const now = Date.now(), sec = Math.floor(now / 1000), changed = sec !== lastSec;
+  lastSec = sec;
+  if (S.mode === 'clock') updateClock(now, changed);
+  else if (S.mode === 'world') { if (changed) updateWorld(now); if (S.worldAnalog) updateWorldAnalog(now); }
+  else if (S.mode === 'compare') { if (changed) updateCompare(now); }
+  else if (S.mode === 'extras') updateExtras(now);
+  if (changed) {
+    const p = zp(now, clockTz()), f = fmtHM(p);
+    let title = `${f.h}:${f.m}${f.ap ? ' ' + f.ap : ''} · ClockLive`;
+    if (S.cd.run) title = `⏱ ${fmtDur(Math.ceil(cdLeft(now) / 1000) * 1000)} · ClockLive`;
+    else if (S.pomo.run) title = `${PH_NAME[S.pomo.phase]} ${fmtDur(Math.ceil(pomoLeft(now) / 1000) * 1000)} · ClockLive`;
+    if (document.title !== title) document.title = title;
+    const m = Math.floor(sec / 60);
+    if (m !== lastMin) { lastMin = m; if (S.bgType === 'sky') applyBg(); updateDim(); }
+  }
+  requestAnimationFrame(frame);
+}
+setInterval(() => {
+  const now = Date.now();
+  if (S.cd.run && now >= S.cd.end) { S.cd.run = false; S.cd.left = 0; save(); renderXCtrls(); ring(T('timesUp')); }
+  if (S.pomo.run && now >= S.pomo.end) {
+    const was = S.pomo.phase;
+    pomoAdvance(true); chime();
+    toast(T(was === 'work' ? 'focusDone' : 'breakOver'));
+  }
+}, 250);
+
+/* ================= events ================= */
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) setMode(b.dataset.mode); });
+$('#setBtn').onclick = () => toggleDrawer();
+$('#drClose').onclick = () => toggleDrawer(false);
+function setDrTab(t) {
+  if (!$(`.dr-pane[data-pane="${t}"]`)) t = 'skin';
+  S.setTab = t; save();
+  $$('#drTabs button').forEach(b => { const on = b.dataset.dt === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $$('.dr-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
+  $('.dr-body').scrollTop = 0;
+}
+$('#drTabs').addEventListener('click', e => { const b = e.target.closest('[data-dt]'); if (b) setDrTab(b.dataset.dt); });
+setDrTab(S.setTab);
+$('#fsBtn').onclick = toggleFS;
+$('#helpBtn').onclick = () => $('#help').classList.add('open');
+$('#skinBtn').onclick = () => cycleSkin(1);
+$('#addCityBtn').onclick = $('#drAddCity').onclick = () => openPicker(addCity);
+$('#clockTzBtn').onclick = $('#clockLabel').onclick = () => openPicker(setClockTz, {local: true});
+$('#skinGrid').addEventListener('click', e => { const b = e.target.closest('.skin-btn'); if (b) setSkin(b.dataset.skin); });
+$('#themeGrid').addEventListener('click', e => { const b = e.target.closest('.sw'); if (b) setTheme(b.dataset.theme); });
+$('#resetAll').onclick = () => {
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  S = load(); applyLook(); syncSettingsUI(); rebuildAll(); setMode(S.mode); renderXCtrls(); renderLaps(); renderPomoDots(); toast(T('settingsReset'));
+};
+$('#cityList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = b.closest('.cl-row').dataset.id, i = S.cities.findIndex(c => c.id === id);
+  if (b.dataset.a === 'rm') S.cities.splice(i, 1);
+  else { const j = b.dataset.a === 'up' ? i - 1 : i + 1; if (j < 0 || j >= S.cities.length) return; [S.cities[i], S.cities[j]] = [S.cities[j], S.cities[i]]; }
+  citiesChanged();
+});
+$('#cityList').addEventListener('change', e => {
+  if (!e.target.classList.contains('cl-in')) return;
+  const c = S.cities.find(c => c.id === e.target.closest('.cl-row').dataset.id);
+  if (c) { c.name = e.target.value.trim() || tzCity(c.tz); save(); buildStrip(); buildWorld(); buildCompare(); }
+});
+document.addEventListener('click', e => { if (e.target.closest('[data-act=add]')) openPicker(addCity); });
+// picker
+$('#pickQ').addEventListener('input', () => { pick.sel = 0; renderPick(); });
+$('#pickQ').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    pick.sel = Math.max(0, Math.min(pick.items.length - 1, pick.sel + (e.key === 'ArrowDown' ? 1 : -1)));
+    $$('.pk').forEach((el, i) => el.classList.toggle('sel', i === pick.sel));
+    const s = $('.pk.sel'); if (s) s.scrollIntoView({block: 'nearest'});
+  } else if (e.key === 'Enter') choosePick(pick.sel);
+  else if (e.key === 'Escape') closePicker();
+});
+$('#pickList').addEventListener('click', e => { const r = e.target.closest('.pk'); if (r) choosePick(+r.dataset.i); });
+$$('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-close]')) m.classList.remove('open'); }));
+// world grid
+const grid = $('#worldGrid');
+let dragId = null;
+grid.addEventListener('click', e => {
+  const x = e.target.closest('.card-x'); if (!x) return;
+  const id = x.closest('.card').dataset.id;
+  S.cities = S.cities.filter(c => c.id !== id); citiesChanged();
+});
+grid.addEventListener('dblclick', e => {
+  const card = e.target.closest('.card'); if (!card) return;
+  const c = S.cities.find(c => c.id === card.dataset.id);
+  if (c) { setClockTz(c.tz === LOCAL_TZ ? {local: true} : c); setMode('clock'); }
+});
+grid.addEventListener('dragstart', e => { const c = e.target.closest('.card'); if (!c) return; dragId = c.dataset.id; c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {} });
+grid.addEventListener('dragend', () => { dragId = null; $$('.card', grid).forEach(c => c.classList.remove('dragging', 'over')); });
+grid.addEventListener('dragover', e => { const c = e.target.closest('.card'); if (!c || !dragId) return; e.preventDefault(); $$('.card.over', grid).forEach(x => x !== c && x.classList.remove('over')); if (c.dataset.id !== dragId) c.classList.add('over'); });
+grid.addEventListener('drop', e => {
+  e.preventDefault();
+  const c = e.target.closest('.card'); if (!c || !dragId || c.dataset.id === dragId) return;
+  const from = S.cities.findIndex(x => x.id === dragId), item = S.cities.splice(from, 1)[0];
+  const to = S.cities.findIndex(x => x.id === c.dataset.id);
+  S.cities.splice(from <= to ? to + 1 : to, 0, item);
+  citiesChanged();
+});
+// compare
+const rowsEl = $('#cmpRows');
+rowsEl.addEventListener('pointermove', e => { if (cmp.lock) return; const t = cmpPointer(e); cmp.cur = t; updateCompare(Date.now()); });
+rowsEl.addEventListener('pointerleave', () => { if (cmp.lock) return; cmp.cur = null; updateCompare(Date.now()); });
+rowsEl.addEventListener('click', e => {
+  const a = e.target.closest('[data-act]');
+  if (a && a.dataset.act !== 'add') {
+    const id = a.closest('.cmp-row').dataset.id;
+    if (a.dataset.act === 'home') { S.compareHome = id; save(); cmp.cur = null; cmp.lock = false; buildCompare(); }
+    else { S.cities = S.cities.filter(c => c.id !== id); citiesChanged(); }
+    return;
+  }
+  if (e.target.closest('.cmp-lab')) return;
+  const t = cmpPointer(e);
+  if (t == null) return;
+  if (cmp.lock) { cmp.lock = false; cmp.cur = t; } else { cmp.lock = true; cmp.cur = t; }
+  updateCompare(Date.now());
+});
+const cmpDay = d => { cmp.day = d; cmp.cur = null; cmp.lock = false; buildCompare(); };
+$('#cmpPrev').onclick = () => cmpDay(cmp.day - 1);
+$('#cmpNext').onclick = () => cmpDay(cmp.day + 1);
+$('#cmpNow').onclick = () => cmpDay(0);
+$('#cmpPlanner').addEventListener('click', e => { const b = e.target.closest('[data-pin]'); if (!b) return; cmp.cur = +b.dataset.pin; cmp.lock = true; updateCompare(Date.now()); });
+// extras
+$$('[data-xtab]').forEach(b => b.onclick = () => setXtab(b.dataset.xtab));
+$('#swGo').onclick = swToggle; $('#swLap').onclick = swLap; $('#swReset').onclick = swReset;
+$('#cdGo').onclick = cdToggle; $('#cdReset').onclick = cdReset; $('#cdPlus').onclick = () => cdAdd(60000);
+$('#cdPresets').addEventListener('click', e => { const b = e.target.closest('[data-min]'); if (b) cdSet(+b.dataset.min * 60000); });
+$('#cdSet').onclick = () => {
+  const ms = ((+$('#cdH').value || 0) * 3600 + (+$('#cdM').value || 0) * 60 + (+$('#cdS').value || 0)) * 1000;
+  if (ms > 0) cdSet(ms); else toast(T('enterDuration'));
+};
+$('#pomoGo').onclick = pomoToggle; $('#pomoSkip').onclick = () => pomoAdvance(true); $('#pomoReset').onclick = pomoReset;
+[['#pW', 'work'], ['#pS', 'short'], ['#pL', 'long'], ['#pR', 'rounds']].forEach(([sel, k]) => $(sel).addEventListener('change', e => {
+  const v = Math.max(1, Math.round(+e.target.value || 1)); S.pomo[k] = v;
+  if (!S.pomo.run) S.pomo.left = pomoMs(S.pomo.phase);
+  save(); renderXCtrls(); renderPomoDots();
+}));
+$('#ringOk').onclick = dismissRing;
+addEventListener('pointerdown', () => { if (actx && actx.state === 'suspended') actx.resume(); if (S.keepAwake && !wl) wake(); }, {passive: true});
+// keyboard
+addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (ringing) { if (k === ' ' || k === 'Escape' || k === 'Enter') { e.preventDefault(); dismissRing(); } return; }
+  if (k === 'Escape') { $$('.modal.open').forEach(m => m.classList.remove('open')); toggleDrawer(false); return; }
+  if (['1', '2', '3', '4'].includes(k)) setMode(['clock', 'world', 'compare', 'extras'][+k - 1]);
+  else if (k === 'f' || k === 'F') toggleFS();
+  else if (k === 's' || k === 'S') toggleDrawer();
+  else if (k === 't') cycleSkin(1);
+  else if (k === 'T') cycleSkin(-1);
+  else if (k === 'a' || k === 'A') openPicker(addCity);
+  else if (k === '?' || k === 'h') $('#help').classList.toggle('open');
+  else if (k === '[' || k === ']') { S.size = Math.max(30, Math.min(100, S.size + (k === ']' ? 5 : -5))); onSetting('size'); syncSettingsUI(); toast(T('sizeToast', {n: S.size})); }
+  else if (k === ' ' && S.mode === 'extras') { e.preventDefault(); ({sw: swToggle, cd: cdToggle, pomo: pomoToggle})[S.xtab](); }
+  else if ((k === 'l' || k === 'L') && S.mode === 'extras' && S.xtab === 'sw') swLap();
+  else if ((k === 'r' || k === 'R') && S.mode === 'extras') ({sw: swReset, cd: cdReset, pomo: pomoReset})[S.xtab]();
+  else if (S.mode === 'compare' && k === 'ArrowLeft') cmpDay(cmp.day - 1);
+  else if (S.mode === 'compare' && k === 'ArrowRight') cmpDay(cmp.day + 1);
+  else if (S.mode === 'compare' && (k === 'n' || k === 'N')) cmpDay(0);
+});
+let rzT;
+addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { face.len = -1; xLen = {}; refit(); }, 80); });
+
+/* ================= boot ================= */
+// Optional URL overrides, e.g. index.html#mode=world&skin=flip&theme=matrix (handy for bookmarking per screen)
+try {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (['clock', 'world', 'compare', 'extras'].includes(h.get('mode'))) S.mode = h.get('mode');
+  if (SKINS[h.get('skin')]) S.skin = h.get('skin');
+  if (THEMES[h.get('theme')]) { const [, bg, fg, ac] = THEMES[h.get('theme')]; Object.assign(S, {theme: h.get('theme'), bg, fg, accent: ac}); }
+  if (h.get('tz') && validTz(h.get('tz'))) { S.clockTz = canon(h.get('tz')); S.clockName = h.get('name') || tzCity(S.clockTz); }
+  if (h.get('bg') && BGS[h.get('bg')]) S.bgType = h.get('bg');
+  if (h.get('lang') && I18N[h.get('lang')]) S.lang = h.get('lang');
+} catch (e) {}
+applyLang(S.lang);
+buildSettingsUI();
+bindSettings();
+applyLook();
+syncSettingsUI();
+rebuildAll();
+setMode(S.mode);
+renderXCtrls(); renderLaps(); renderPomoDots();
+updateDim(); wake(); poke();
+requestAnimationFrame(frame);
+if (document.fonts) {
+  document.fonts.ready.then(() => {
+    measureDigits(); face.len = -1; xLen = {}; refit();
+    // warm up every skin's font so switching skins later never waits on a download
+    setTimeout(() => Object.values(SKINS).forEach(sk => document.fonts.load(`${sk.weight} 100px ${FONTS[sk.font][1]}`).catch(() => {})), 1500);
+  });
+  document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { measureDigits(); refit(); });
+}
+window.ClockLive = {zp, tzOffset, utcLabel, get settings() { return S; }};
+})();
+</script>
+</body>
+</html>
